@@ -39,6 +39,10 @@ const (
 	FieldToken = "token"
 	// FieldObsoleteToken holds the string denoting the obsolete_token field in the database.
 	FieldObsoleteToken = "obsolete_token"
+	// FieldFamilyID holds the string denoting the family_id field in the database.
+	FieldFamilyID = "family_id"
+	// FieldObsoleteConsumedAt holds the string denoting the obsolete_consumed_at field in the database.
+	FieldObsoleteConsumedAt = "obsolete_consumed_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastUsed holds the string denoting the last_used field in the database.
@@ -63,6 +67,8 @@ var Columns = []string{
 	FieldConnectorData,
 	FieldToken,
 	FieldObsoleteToken,
+	FieldFamilyID,
+	FieldObsoleteConsumedAt,
 	FieldCreatedAt,
 	FieldLastUsed,
 }
@@ -90,6 +96,8 @@ var (
 	DefaultToken string
 	// DefaultObsoleteToken holds the default value on creation for the "obsolete_token" field.
 	DefaultObsoleteToken string
+	// DefaultFamilyID holds the default value on creation for the "family_id" field.
+	DefaultFamilyID string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultLastUsed holds the default value on creation for the "last_used" field.
@@ -154,6 +162,16 @@ func ByToken(opts ...sql.OrderTermOption) OrderOption {
 // ByObsoleteToken orders the results by the obsolete_token field.
 func ByObsoleteToken(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldObsoleteToken, opts...).ToFunc()
+}
+
+// ByFamilyID orders the results by the family_id field.
+func ByFamilyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFamilyID, opts...).ToFunc()
+}
+
+// ByObsoleteConsumedAt orders the results by the obsolete_consumed_at field.
+func ByObsoleteConsumedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldObsoleteConsumedAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

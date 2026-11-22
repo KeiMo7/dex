@@ -27,6 +27,8 @@ func New(logger *slog.Logger) storage.Storage {
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
+		tokenFamilies:   make(map[string]storage.TokenFamily),
+		tokenNodes:      make(map[string]storage.TokenNode),
 		logger:          logger,
 	}
 }
@@ -56,6 +58,8 @@ type memStorage struct {
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
+	tokenFamilies   map[string]storage.TokenFamily
+	tokenNodes      map[string]storage.TokenNode
 
 	keys storage.Keys
 
@@ -105,6 +109,14 @@ func (s *memStorage) GarbageCollect(ctx context.Context, now time.Time) (result 
 			if now.After(a.AbsoluteExpiry) || now.After(a.IdleExpiry) {
 				delete(s.authSessions, id)
 				result.AuthSessions++
+			}
+		}
+		// Access-token nodes only need to survive until the JWT's own expiry;
+		// after that the revocation record is dead weight.
+		for id, n := range s.tokenNodes {
+			if n.Kind == storage.TokenNodeKindAccess && !n.ExpiresAt.IsZero() && now.After(n.ExpiresAt) {
+				delete(s.tokenNodes, id)
+				result.TokenNodes++
 			}
 		}
 	})

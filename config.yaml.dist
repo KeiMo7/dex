@@ -92,6 +92,20 @@ web:
 #   idJAGTokens: "5m"
 #   refreshTokens:
 #     disableRotation: false
+#     # reuseInterval is the rotation grace period. After a refresh token is
+#     # rotated, its previous value stays redeemable for this long, so concurrent
+#     # refresh requests carrying the old value do not log the user out. Within
+#     # the window the old value may succeed exactly once: the first concurrent
+#     # request redeems the current token, the rest are rejected as already used.
+#     # An old value presented AFTER the window is treated as a replay: the whole
+#     # token family (every refresh token derived from it and the access tokens
+#     # minted from it) is revoked and a security event is logged.
+#     # "0s" (the default) disables the grace period entirely, keeping one-shot
+#     # rotation: an old token fails on its second use and no family is tracked.
+#     # Keep this short — a long value widens the replay window — and tune it
+#     # together with idTokens above: a grace interval longer than the access
+#     # token lifetime means family revocation cannot reach access tokens before
+#     # they expire naturally.
 #     reuseInterval: "3s"
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days

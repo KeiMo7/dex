@@ -119,6 +119,16 @@ func ObsoleteToken(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldObsoleteToken, v))
 }
 
+// FamilyID applies equality check predicate on the "family_id" field. It's identical to FamilyIDEQ.
+func FamilyID(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldFamilyID, v))
+}
+
+// ObsoleteConsumedAt applies equality check predicate on the "obsolete_consumed_at" field. It's identical to ObsoleteConsumedAtEQ.
+func ObsoleteConsumedAt(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldObsoleteConsumedAt, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldCreatedAt, v))
@@ -792,6 +802,121 @@ func ObsoleteTokenEqualFold(v string) predicate.RefreshToken {
 // ObsoleteTokenContainsFold applies the ContainsFold predicate on the "obsolete_token" field.
 func ObsoleteTokenContainsFold(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldContainsFold(FieldObsoleteToken, v))
+}
+
+// FamilyIDEQ applies the EQ predicate on the "family_id" field.
+func FamilyIDEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldFamilyID, v))
+}
+
+// FamilyIDNEQ applies the NEQ predicate on the "family_id" field.
+func FamilyIDNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldFamilyID, v))
+}
+
+// FamilyIDIn applies the In predicate on the "family_id" field.
+func FamilyIDIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldFamilyID, vs...))
+}
+
+// FamilyIDNotIn applies the NotIn predicate on the "family_id" field.
+func FamilyIDNotIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldFamilyID, vs...))
+}
+
+// FamilyIDGT applies the GT predicate on the "family_id" field.
+func FamilyIDGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldFamilyID, v))
+}
+
+// FamilyIDGTE applies the GTE predicate on the "family_id" field.
+func FamilyIDGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldFamilyID, v))
+}
+
+// FamilyIDLT applies the LT predicate on the "family_id" field.
+func FamilyIDLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldFamilyID, v))
+}
+
+// FamilyIDLTE applies the LTE predicate on the "family_id" field.
+func FamilyIDLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldFamilyID, v))
+}
+
+// FamilyIDContains applies the Contains predicate on the "family_id" field.
+func FamilyIDContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContains(FieldFamilyID, v))
+}
+
+// FamilyIDHasPrefix applies the HasPrefix predicate on the "family_id" field.
+func FamilyIDHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasPrefix(FieldFamilyID, v))
+}
+
+// FamilyIDHasSuffix applies the HasSuffix predicate on the "family_id" field.
+func FamilyIDHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasSuffix(FieldFamilyID, v))
+}
+
+// FamilyIDEqualFold applies the EqualFold predicate on the "family_id" field.
+func FamilyIDEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldFamilyID, v))
+}
+
+// FamilyIDContainsFold applies the ContainsFold predicate on the "family_id" field.
+func FamilyIDContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldFamilyID, v))
+}
+
+// ObsoleteConsumedAtEQ applies the EQ predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtEQ(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtNEQ applies the NEQ predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtNEQ(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtIn applies the In predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtIn(vs ...time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldObsoleteConsumedAt, vs...))
+}
+
+// ObsoleteConsumedAtNotIn applies the NotIn predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtNotIn(vs ...time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldObsoleteConsumedAt, vs...))
+}
+
+// ObsoleteConsumedAtGT applies the GT predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtGT(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtGTE applies the GTE predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtGTE(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtLT applies the LT predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtLT(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtLTE applies the LTE predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtLTE(v time.Time) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldObsoleteConsumedAt, v))
+}
+
+// ObsoleteConsumedAtIsNil applies the IsNil predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtIsNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIsNull(FieldObsoleteConsumedAt))
+}
+
+// ObsoleteConsumedAtNotNil applies the NotNil predicate on the "obsolete_consumed_at" field.
+func ObsoleteConsumedAtNotNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotNull(FieldObsoleteConsumedAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

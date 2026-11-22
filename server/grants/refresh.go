@@ -138,9 +138,18 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 
 	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.policy, freshIdentity)
 	if err != nil {
-		if upstreamRejected(err) {
+		switch {
+		case upstreamRejected(err):
 			g.logger.InfoContext(ctx, "failed to rotate refresh token", "err", err)
-		} else {
+		case errors.Is(err, tokens.ErrRefreshTokenAlreadyUsed):
+			// A lost in-flight race, not a fault: the caller's obsolete token was
+			// already redeemed once inside its grace window.
+			g.logger.InfoContext(ctx, "refresh token reuse rejected: already used in grace period", "token_id", refreshToken.ID)
+		case errors.Is(err, tokens.ErrRefreshTokenReplayed), errors.Is(err, tokens.ErrRefreshTokenClaimedTwice):
+			// A replay is logged as a security event by the store; here it is an
+			// info to avoid double-counting it as a server fault.
+			g.logger.InfoContext(ctx, "refresh token rotation refused", "err", err, "token_id", refreshToken.ID)
+		default:
 			g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
 		}
 		return nil, rotateError(err)
@@ -156,12 +165,22 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		SessionID:   sessionID,
 	}
 
-	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
+	accessToken, accessJTI, expiry, err := g.issuer.SignAccessTokenWithID(ctx, auth)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
-	idToken, expiry, err := g.issuer.SignIDToken(ctx, auth, accessToken, "")
+
+	// Record the access token in the family graph so a replay-driven family
+	// revocation propagates to it through introspection. Fail closed: a grant
+	// that cannot register the node must not hand out a token revocation could
+	// not reach.
+	if err := g.issuer.Refresh.RegisterAccessToken(ctx, refreshToken.FamilyID, *refreshToken, accessJTI, expiry); err != nil {
+		g.logger.ErrorContext(ctx, "failed to register access token in token family", "family_id", refreshToken.FamilyID, "err", err)
+		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+	}
+
+	idToken, _, err := g.issuer.SignIDToken(ctx, auth, accessToken, "")
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
@@ -327,6 +346,10 @@ func refreshLookupError(err error) *oauth2.Error {
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: claimedDesc, Status: http.StatusBadRequest}
 	case errors.Is(err, tokens.ErrRefreshTokenExpired):
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token expired.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenFamilyRevoked):
+		// A revoked family means a replay was already detected (or an admin ended
+		// it). The client must re-authenticate; the description names the cause.
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token family has been revoked.", Status: http.StatusBadRequest}
 	default:
 		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
@@ -335,14 +358,32 @@ func refreshLookupError(err error) *oauth2.Error {
 // rotateError maps a failed rotation to the grant's OAuth2 error response. An
 // upstream that answers the connector's refresh with invalid_grant has ended the
 // user's session there, so it is passed on as invalid_grant: clients rely on it
-// to start a new login, and a 500 would only have them retry. Any other failure
-// is a server error.
+// to start a new login, and a 500 would only have them retry. The grace-period
+// and replay sentinels are also client-facing rejections with distinct
+// descriptions; any other failure is a server error.
 // https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 func rotateError(err error) *oauth2.Error {
-	if upstreamRejected(err) {
+	switch {
+	case errors.Is(err, tokens.ErrRefreshTokenAlreadyUsed):
+		// The caller lost the in-flight race: its obsolete token's single grace
+		// reuse was already spent. It should retry with the newest token it holds
+		// rather than treat this as a compromise.
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token has already been used during its rotation grace period.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenReplayed), errors.Is(err, tokens.ErrRefreshTokenFamilyRevoked):
+		// A replay outside the grace period revoked the whole family; the audit
+		// record and warning log were written by the store before this error.
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token replay detected; the token family has been revoked.", Status: http.StatusBadRequest}
+	case upstreamRejected(err):
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "The upstream identity provider rejected the refresh token.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenClaimedTwice):
+		// The store's double-claim error for a family-less legacy row, or a
+		// conflict during finalize: a secret that is neither current nor a
+		// redeemable obsolete token. It is a client-facing invalid_grant, like the
+		// lookup-time equivalent, not a 500.
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token is invalid or has already been claimed by another client.", Status: http.StatusBadRequest}
+	default:
+		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
-	return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 }
 
 // upstreamRejected reports whether the upstream answered the connector's refresh

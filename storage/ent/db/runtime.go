@@ -16,6 +16,8 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/db/tokenfamily"
+	"github.com/dexidp/dex/storage/ent/db/tokennode"
 	"github.com/dexidp/dex/storage/ent/db/useridentity"
 	"github.com/dexidp/dex/storage/ent/schema"
 )
@@ -274,18 +276,86 @@ func init() {
 	refreshtokenDescObsoleteToken := refreshtokenFields[13].Descriptor()
 	// refreshtoken.DefaultObsoleteToken holds the default value on creation for the obsolete_token field.
 	refreshtoken.DefaultObsoleteToken = refreshtokenDescObsoleteToken.Default.(string)
+	// refreshtokenDescFamilyID is the schema descriptor for family_id field.
+	refreshtokenDescFamilyID := refreshtokenFields[14].Descriptor()
+	// refreshtoken.DefaultFamilyID holds the default value on creation for the family_id field.
+	refreshtoken.DefaultFamilyID = refreshtokenDescFamilyID.Default.(string)
 	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
-	refreshtokenDescCreatedAt := refreshtokenFields[14].Descriptor()
+	refreshtokenDescCreatedAt := refreshtokenFields[16].Descriptor()
 	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
 	// refreshtokenDescLastUsed is the schema descriptor for last_used field.
-	refreshtokenDescLastUsed := refreshtokenFields[15].Descriptor()
+	refreshtokenDescLastUsed := refreshtokenFields[17].Descriptor()
 	// refreshtoken.DefaultLastUsed holds the default value on creation for the last_used field.
 	refreshtoken.DefaultLastUsed = refreshtokenDescLastUsed.Default.(func() time.Time)
 	// refreshtokenDescID is the schema descriptor for id field.
 	refreshtokenDescID := refreshtokenFields[0].Descriptor()
 	// refreshtoken.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	refreshtoken.IDValidator = refreshtokenDescID.Validators[0].(func(string) error)
+	tokenfamilyFields := schema.TokenFamily{}.Fields()
+	_ = tokenfamilyFields
+	// tokenfamilyDescClientID is the schema descriptor for client_id field.
+	tokenfamilyDescClientID := tokenfamilyFields[1].Descriptor()
+	// tokenfamily.ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
+	tokenfamily.ClientIDValidator = tokenfamilyDescClientID.Validators[0].(func(string) error)
+	// tokenfamilyDescUserID is the schema descriptor for user_id field.
+	tokenfamilyDescUserID := tokenfamilyFields[2].Descriptor()
+	// tokenfamily.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	tokenfamily.UserIDValidator = tokenfamilyDescUserID.Validators[0].(func(string) error)
+	// tokenfamilyDescConnectorID is the schema descriptor for connector_id field.
+	tokenfamilyDescConnectorID := tokenfamilyFields[3].Descriptor()
+	// tokenfamily.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
+	tokenfamily.ConnectorIDValidator = tokenfamilyDescConnectorID.Validators[0].(func(string) error)
+	// tokenfamilyDescCreatedAt is the schema descriptor for created_at field.
+	tokenfamilyDescCreatedAt := tokenfamilyFields[4].Descriptor()
+	// tokenfamily.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tokenfamily.DefaultCreatedAt = tokenfamilyDescCreatedAt.Default.(func() time.Time)
+	// tokenfamilyDescRevokeReason is the schema descriptor for revoke_reason field.
+	tokenfamilyDescRevokeReason := tokenfamilyFields[6].Descriptor()
+	// tokenfamily.DefaultRevokeReason holds the default value on creation for the revoke_reason field.
+	tokenfamily.DefaultRevokeReason = tokenfamilyDescRevokeReason.Default.(string)
+	// tokenfamilyDescLastReplayedToken is the schema descriptor for last_replayed_token field.
+	tokenfamilyDescLastReplayedToken := tokenfamilyFields[7].Descriptor()
+	// tokenfamily.DefaultLastReplayedToken holds the default value on creation for the last_replayed_token field.
+	tokenfamily.DefaultLastReplayedToken = tokenfamilyDescLastReplayedToken.Default.(string)
+	// tokenfamilyDescID is the schema descriptor for id field.
+	tokenfamilyDescID := tokenfamilyFields[0].Descriptor()
+	// tokenfamily.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tokenfamily.IDValidator = tokenfamilyDescID.Validators[0].(func(string) error)
+	tokennodeFields := schema.TokenNode{}.Fields()
+	_ = tokennodeFields
+	// tokennodeDescFamilyID is the schema descriptor for family_id field.
+	tokennodeDescFamilyID := tokennodeFields[1].Descriptor()
+	// tokennode.FamilyIDValidator is a validator for the "family_id" field. It is called by the builders before save.
+	tokennode.FamilyIDValidator = tokennodeDescFamilyID.Validators[0].(func(string) error)
+	// tokennodeDescParentID is the schema descriptor for parent_id field.
+	tokennodeDescParentID := tokennodeFields[2].Descriptor()
+	// tokennode.DefaultParentID holds the default value on creation for the parent_id field.
+	tokennode.DefaultParentID = tokennodeDescParentID.Default.(string)
+	// tokennodeDescKind is the schema descriptor for kind field.
+	tokennodeDescKind := tokennodeFields[3].Descriptor()
+	// tokennode.KindValidator is a validator for the "kind" field. It is called by the builders before save.
+	tokennode.KindValidator = tokennodeDescKind.Validators[0].(func(string) error)
+	// tokennodeDescClientID is the schema descriptor for client_id field.
+	tokennodeDescClientID := tokennodeFields[4].Descriptor()
+	// tokennode.ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
+	tokennode.ClientIDValidator = tokennodeDescClientID.Validators[0].(func(string) error)
+	// tokennodeDescUserID is the schema descriptor for user_id field.
+	tokennodeDescUserID := tokennodeFields[5].Descriptor()
+	// tokennode.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	tokennode.UserIDValidator = tokennodeDescUserID.Validators[0].(func(string) error)
+	// tokennodeDescConnectorID is the schema descriptor for connector_id field.
+	tokennodeDescConnectorID := tokennodeFields[6].Descriptor()
+	// tokennode.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
+	tokennode.ConnectorIDValidator = tokennodeDescConnectorID.Validators[0].(func(string) error)
+	// tokennodeDescCreatedAt is the schema descriptor for created_at field.
+	tokennodeDescCreatedAt := tokennodeFields[7].Descriptor()
+	// tokennode.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tokennode.DefaultCreatedAt = tokennodeDescCreatedAt.Default.(func() time.Time)
+	// tokennodeDescID is the schema descriptor for id field.
+	tokennodeDescID := tokennodeFields[0].Descriptor()
+	// tokennode.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tokennode.IDValidator = tokennodeDescID.Validators[0].(func(string) error)
 	useridentityFields := schema.UserIdentity{}.Fields()
 	_ = useridentityFields
 	// useridentityDescUserID is the schema descriptor for user_id field.

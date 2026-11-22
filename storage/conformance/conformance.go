@@ -61,6 +61,9 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"AuthSessionCRUD", testAuthSessionCRUD},
 		{"AuthSessionLogoutState", testAuthSessionLogoutState},
 		{"UnsetAuthTime", testUnsetAuthTime},
+		{"TokenFamilyCRUD", testTokenFamilyCRUD},
+		{"TokenFamilyConcurrentUpdate", testTokenFamilyConcurrentUpdate},
+		{"TokenNodeGarbageCollection", testTokenNodeGarbageCollection},
 	})
 }
 

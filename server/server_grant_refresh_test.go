@@ -183,7 +183,7 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			if tc.error == "" {
 				require.Equal(t, 200, rr.Code)
 			} else {
-				require.Equal(t, rr.Body.String(), tc.error)
+				require.Equal(t, tc.error, rr.Body.String())
 				return
 			}
 

@@ -226,6 +226,8 @@ var (
 		{Name: "connector_data", Type: field.TypeBytes, Nullable: true},
 		{Name: "token", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "obsolete_token", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "family_id", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "obsolete_consumed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "last_used", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 	}
@@ -234,6 +236,61 @@ var (
 		Name:       "refresh_tokens",
 		Columns:    RefreshTokensColumns,
 		PrimaryKey: []*schema.Column{RefreshTokensColumns[0]},
+	}
+	// TokenFamiliesColumns holds the columns for the "token_families" table.
+	TokenFamiliesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "user_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "connector_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "revoke_reason", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "last_replayed_token", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+	}
+	// TokenFamiliesTable holds the schema information for the "token_families" table.
+	TokenFamiliesTable = &schema.Table{
+		Name:       "token_families",
+		Columns:    TokenFamiliesColumns,
+		PrimaryKey: []*schema.Column{TokenFamiliesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "tokenfamily_user_id_connector_id",
+				Unique:  false,
+				Columns: []*schema.Column{TokenFamiliesColumns[2], TokenFamiliesColumns[3]},
+			},
+		},
+	}
+	// TokenNodesColumns holds the columns for the "token_nodes" table.
+	TokenNodesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "family_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "parent_id", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "kind", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "user_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "connector_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+	}
+	// TokenNodesTable holds the schema information for the "token_nodes" table.
+	TokenNodesTable = &schema.Table{
+		Name:       "token_nodes",
+		Columns:    TokenNodesColumns,
+		PrimaryKey: []*schema.Column{TokenNodesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "tokennode_family_id",
+				Unique:  false,
+				Columns: []*schema.Column{TokenNodesColumns[1]},
+			},
+			{
+				Name:    "tokennode_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{TokenNodesColumns[8]},
+			},
+		},
 	}
 	// UserIdentitiesColumns holds the columns for the "user_identities" table.
 	UserIdentitiesColumns = []*schema.Column{
@@ -272,6 +329,8 @@ var (
 		OfflineSessionsTable,
 		PasswordsTable,
 		RefreshTokensTable,
+		TokenFamiliesTable,
+		TokenNodesTable,
 		UserIdentitiesTable,
 	}
 )

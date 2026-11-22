@@ -23,6 +23,8 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/db/tokenfamily"
+	"github.com/dexidp/dex/storage/ent/db/tokennode"
 	"github.com/dexidp/dex/storage/ent/db/useridentity"
 )
 
@@ -95,6 +97,8 @@ func checkColumn(t, c string) error {
 			offlinesession.Table: offlinesession.ValidColumn,
 			password.Table:       password.ValidColumn,
 			refreshtoken.Table:   refreshtoken.ValidColumn,
+			tokenfamily.Table:    tokenfamily.ValidColumn,
+			tokennode.Table:      tokennode.ValidColumn,
 			useridentity.Table:   useridentity.ValidColumn,
 		})
 	})

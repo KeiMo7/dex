@@ -141,6 +141,30 @@ func (f RefreshTokenFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.RefreshTokenMutation", m)
 }
 
+// The TokenFamilyFunc type is an adapter to allow the use of ordinary
+// function as TokenFamily mutator.
+type TokenFamilyFunc func(context.Context, *db.TokenFamilyMutation) (db.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TokenFamilyFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
+	if mv, ok := m.(*db.TokenFamilyMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.TokenFamilyMutation", m)
+}
+
+// The TokenNodeFunc type is an adapter to allow the use of ordinary
+// function as TokenNode mutator.
+type TokenNodeFunc func(context.Context, *db.TokenNodeMutation) (db.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TokenNodeFunc) Mutate(ctx context.Context, m db.Mutation) (db.Value, error) {
+	if mv, ok := m.(*db.TokenNodeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *db.TokenNodeMutation", m)
+}
+
 // The UserIdentityFunc type is an adapter to allow the use of ordinary
 // function as UserIdentity mutator.
 type UserIdentityFunc func(context.Context, *db.UserIdentityMutation) (db.Value, error)

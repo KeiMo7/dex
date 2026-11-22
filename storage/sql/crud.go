@@ -129,6 +129,16 @@ func (c *conn) GarbageCollect(ctc context.Context, now time.Time) (storage.GCRes
 		result.AuthSessions = n
 	}
 
+	// Access-token revocation records outlive no purpose once the JWT itself has
+	// reached its natural expiry.
+	r, err = c.Exec(`delete from token_node where kind = $1 and expires_at is not null and expires_at < $2`, storage.TokenNodeKindAccess, now)
+	if err != nil {
+		return result, fmt.Errorf("gc token_node: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.TokenNodes = n
+	}
+
 	return result, nil
 }
 
@@ -322,9 +332,10 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			family_id, obsolete_consumed_at
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
@@ -332,6 +343,7 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
 		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+		r.FamilyID, r.ObsoleteConsumedAt,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -368,16 +380,19 @@ func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(o
 				token = $12,
                 obsolete_token = $13,
 				created_at = $14,
-				last_used = $15
+				last_used = $15,
+				family_id = $16,
+				obsolete_consumed_at = $17
 			where
-				id = $16
+				id = $18
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+			r.FamilyID, r.ObsoleteConsumedAt, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
@@ -398,7 +413,8 @@ func getRefresh(ctx context.Context, q querier, id string) (storage.RefreshToken
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			family_id, obsolete_consumed_at
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -410,7 +426,8 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			family_id, obsolete_consumed_at
 		from refresh_token;
 	`)
 	if err != nil {
@@ -433,6 +450,7 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 }
 
 func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
+	var obsoleteConsumed sql.NullTime
 	err = s.Scan(
 		&r.ID, &r.ClientID, decoder(&r.Scopes), &r.Nonce,
 		&r.Claims.UserID, &r.Claims.Username, &r.Claims.PreferredUsername,
@@ -440,12 +458,16 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
 		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
+		&r.FamilyID, &obsoleteConsumed,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return r, storage.ErrNotFound
 		}
 		return r, fmt.Errorf("scan refresh_token: %v", err)
+	}
+	if obsoleteConsumed.Valid {
+		r.ObsoleteConsumedAt = fromStoredTime(obsoleteConsumed.Time)
 	}
 	return r, nil
 }

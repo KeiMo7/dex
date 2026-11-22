@@ -23,6 +23,16 @@ func newTestStore(t *testing.T) (*RefreshStore, storage.Storage) {
 	return NewRefreshStore(store, time.Now, logger), store
 }
 
+// mutableClock is a clock whose current time can be advanced after construction,
+// so a store and a strategy built from it both observe the advance. Reassigning
+// a plain `now` variable would not move either of them, since their closures
+// captured the original value.
+type mutableClock struct{ t time.Time }
+
+func newMutableClock(t time.Time) *mutableClock { return &mutableClock{t: t} }
+func (m *mutableClock) now() time.Time          { return m.t }
+func (m *mutableClock) advance(d time.Duration) { m.t = m.t.Add(d) }
+
 func TestRefreshStoreCreate(t *testing.T) {
 	ctx := context.Background()
 	rt, store := newTestStore(t)
@@ -369,13 +379,13 @@ func TestRefreshStoreRotateResolveFailureUndoesClaim(t *testing.T) {
 
 func TestRefreshStoreRotateFinalizeFailureUndoesClaim(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now().UTC()
-	clock := func() time.Time { return now }
+	clk := newMutableClock(time.Now().UTC())
+	clock := clk.now
 
 	failing := &failingFinalizeStorage{Storage: memory.New(slog.New(slog.DiscardHandler))}
 	failing.failNow.Store(true)
 	rt := NewRefreshStore(failing, clock, slog.New(slog.DiscardHandler))
-	aged := now.Add(-31 * time.Second)
+	aged := clk.t.Add(-31 * time.Second)
 	seedRefreshToken(t, failing.Storage, aged)
 	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
 
@@ -400,7 +410,7 @@ func TestRefreshStoreRotateFinalizeFailureUndoesClaim(t *testing.T) {
 
 	// Within the window the retry would have taken the reuse path had the claim
 	// stood; with it undone the retry re-rotates.
-	now = now.Add(time.Second)
+	clk.advance(time.Second)
 	raw, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
 	require.NoError(t, err)
 	var tok internal.RefreshToken
@@ -453,12 +463,12 @@ func TestRefreshStoreRotateOfflineSessionFailureUndoesClaim(t *testing.T) {
 
 func TestRefreshStoreRotateOfflineSessionFailureOnReusePathLeavesRow(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now().UTC()
-	clock := func() time.Time { return now }
+	clk := newMutableClock(time.Now().UTC())
+	clock := clk.now
 
 	failing := &failingOfflineSessionStorage{Storage: memory.New(slog.New(slog.DiscardHandler))}
 	rt := NewRefreshStore(failing, clock, slog.New(slog.DiscardHandler))
-	seedRefreshToken(t, failing.Storage, now.Add(-31*time.Second))
+	seedRefreshToken(t, failing.Storage, clk.t.Add(-31*time.Second))
 	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
 
 	fresh := func(context.Context) (connector.Identity, error) {
@@ -484,7 +494,7 @@ func TestRefreshStoreRotateOfflineSessionFailureOnReusePathLeavesRow(t *testing.
 	// rotated token the client already holds.
 	failing.failNow.Store(true)
 	failing.updates.Store(0)
-	now = now.Add(time.Second)
+	clk.advance(time.Second)
 	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
 	require.Error(t, err, "the injected offline session failure must fail the grant")
 
@@ -498,12 +508,12 @@ func TestRefreshStoreRotateOfflineSessionFailureOnReusePathLeavesRow(t *testing.
 
 func TestRefreshStoreRotateReuseWindowSkipsConnector(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now().UTC()
-	clock := func() time.Time { return now }
+	clk := newMutableClock(time.Now().UTC())
+	clock := clk.now
 
 	store := memory.New(slog.New(slog.DiscardHandler))
 	rt := NewRefreshStore(store, clock, slog.New(slog.DiscardHandler))
-	seedRefreshToken(t, store, now.Add(-31*time.Second))
+	seedRefreshToken(t, store, clk.t.Add(-31*time.Second))
 	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
 
 	var resolves atomic.Int32
@@ -523,7 +533,7 @@ func TestRefreshStoreRotateReuseWindowSkipsConnector(t *testing.T) {
 
 	// Within the window the obsolete token redeems the rotated one without
 	// consulting the connector, so the retry works even if the user is gone.
-	now = now.Add(time.Second)
+	clk.advance(time.Second)
 	retried, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
 	require.NoError(t, err)
 	var redeemed internal.RefreshToken

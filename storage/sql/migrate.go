@@ -512,4 +512,44 @@ var migrations = []migration{
 			`alter table auth_session add column connector_data bytea;`,
 		},
 	},
+	{
+		// Refresh-token family graph: grace-period reuse state lives on the
+		// refresh row, the family root and the graph nodes get their own tables.
+		// Timestamps are nullable so the zero time.Time round-trips on every
+		// flavor; translateArgs already maps zero time to the stored epoch value.
+		stmts: []string{
+			`
+			alter table refresh_token
+				add column family_id text not null default '';`,
+			`
+			alter table refresh_token
+				add column obsolete_consumed_at timestamptz;`,
+			`
+			create table token_family (
+				id text not null primary key,
+				client_id text not null,
+				user_id text not null,
+				connector_id text not null,
+				created_at timestamptz not null,
+				revoked_at timestamptz,
+				revoke_reason text not null default '',
+				last_replayed_token text not null default ''
+			);`,
+			`
+			create table token_node (
+				id text not null primary key,
+				family_id text not null,
+				parent_id text not null default '',
+				kind text not null,
+				client_id text not null,
+				user_id text not null,
+				connector_id text not null,
+				created_at timestamptz not null,
+				expires_at timestamptz,
+				revoked_at timestamptz
+			);`,
+			`create index token_node_family_idx on token_node (family_id);`,
+			`create index token_node_expiry_idx on token_node (expires_at);`,
+		},
+	},
 }

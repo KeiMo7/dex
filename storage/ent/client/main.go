@@ -120,5 +120,11 @@ func (d *Database) GarbageCollect(ctx context.Context, now time.Time) (storage.G
 	}
 	result.AuthSessions = int64(q)
 
+	q, err = d.gcExpiredTokenNodes(ctx, utcNow)
+	if err != nil {
+		return result, convertDBError("gc token node: %w", err)
+	}
+	result.TokenNodes = int64(q)
+
 	return result, err
 }

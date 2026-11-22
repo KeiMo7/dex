@@ -144,3 +144,46 @@ func GenSubject(userID string, connID string) (string, error) {
 
 	return internal.Marshal(sub)
 }
+
+// jwtID extracts the "jti" claim from a compact-serialized JWT without verifying
+// its signature. The token was just minted by this process, so signature
+// verification is pointless here; only the payload is needed to key the family
+// graph node. A malformed token is an error.
+func jwtID(raw string) (string, error) {
+	parts := splitCompactJWT(raw)
+	if len(parts) != 3 {
+		return "", fmt.Errorf("malformed compact JWT: %d parts", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("decode jwt payload: %w", err)
+	}
+	var claims struct {
+		JWTID string `json:"jti"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("unmarshal jwt claims: %w", err)
+	}
+	return claims.JWTID, nil
+}
+
+// splitCompactJWT splits a compact JWT on its two separating dots.
+func splitCompactJWT(raw string) []string {
+	var parts []string
+	start := 0
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '.' {
+			parts = append(parts, raw[start:i])
+			start = i + 1
+		}
+	}
+	parts = append(parts, raw[start:])
+	return parts
+}
+
+// JWTIDFromToken extracts the "jti" claim from a compact-serialized JWT without
+// verifying its signature. Callers must verify the token separately; this only
+// reads the identifier used to key family-graph nodes.
+func JWTIDFromToken(raw string) (string, error) {
+	return jwtID(raw)
+}

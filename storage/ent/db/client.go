@@ -25,6 +25,8 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/db/tokenfamily"
+	"github.com/dexidp/dex/storage/ent/db/tokennode"
 	"github.com/dexidp/dex/storage/ent/db/useridentity"
 )
 
@@ -55,6 +57,10 @@ type Client struct {
 	Password *PasswordClient
 	// RefreshToken is the client for interacting with the RefreshToken builders.
 	RefreshToken *RefreshTokenClient
+	// TokenFamily is the client for interacting with the TokenFamily builders.
+	TokenFamily *TokenFamilyClient
+	// TokenNode is the client for interacting with the TokenNode builders.
+	TokenNode *TokenNodeClient
 	// UserIdentity is the client for interacting with the UserIdentity builders.
 	UserIdentity *UserIdentityClient
 }
@@ -79,6 +85,8 @@ func (c *Client) init() {
 	c.OfflineSession = NewOfflineSessionClient(c.config)
 	c.Password = NewPasswordClient(c.config)
 	c.RefreshToken = NewRefreshTokenClient(c.config)
+	c.TokenFamily = NewTokenFamilyClient(c.config)
+	c.TokenNode = NewTokenNodeClient(c.config)
 	c.UserIdentity = NewUserIdentityClient(c.config)
 }
 
@@ -183,6 +191,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		OfflineSession: NewOfflineSessionClient(cfg),
 		Password:       NewPasswordClient(cfg),
 		RefreshToken:   NewRefreshTokenClient(cfg),
+		TokenFamily:    NewTokenFamilyClient(cfg),
+		TokenNode:      NewTokenNodeClient(cfg),
 		UserIdentity:   NewUserIdentityClient(cfg),
 	}, nil
 }
@@ -214,6 +224,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		OfflineSession: NewOfflineSessionClient(cfg),
 		Password:       NewPasswordClient(cfg),
 		RefreshToken:   NewRefreshTokenClient(cfg),
+		TokenFamily:    NewTokenFamilyClient(cfg),
+		TokenNode:      NewTokenNodeClient(cfg),
 		UserIdentity:   NewUserIdentityClient(cfg),
 	}, nil
 }
@@ -246,7 +258,7 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AuthCode, c.AuthRequest, c.AuthSession, c.Connector, c.DeviceRequest,
 		c.DeviceToken, c.Keys, c.OAuth2Client, c.OfflineSession, c.Password,
-		c.RefreshToken, c.UserIdentity,
+		c.RefreshToken, c.TokenFamily, c.TokenNode, c.UserIdentity,
 	} {
 		n.Use(hooks...)
 	}
@@ -258,7 +270,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AuthCode, c.AuthRequest, c.AuthSession, c.Connector, c.DeviceRequest,
 		c.DeviceToken, c.Keys, c.OAuth2Client, c.OfflineSession, c.Password,
-		c.RefreshToken, c.UserIdentity,
+		c.RefreshToken, c.TokenFamily, c.TokenNode, c.UserIdentity,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -289,6 +301,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Password.mutate(ctx, m)
 	case *RefreshTokenMutation:
 		return c.RefreshToken.mutate(ctx, m)
+	case *TokenFamilyMutation:
+		return c.TokenFamily.mutate(ctx, m)
+	case *TokenNodeMutation:
+		return c.TokenNode.mutate(ctx, m)
 	case *UserIdentityMutation:
 		return c.UserIdentity.mutate(ctx, m)
 	default:
@@ -1759,6 +1775,272 @@ func (c *RefreshTokenClient) mutate(ctx context.Context, m *RefreshTokenMutation
 	}
 }
 
+// TokenFamilyClient is a client for the TokenFamily schema.
+type TokenFamilyClient struct {
+	config
+}
+
+// NewTokenFamilyClient returns a client for the TokenFamily from the given config.
+func NewTokenFamilyClient(c config) *TokenFamilyClient {
+	return &TokenFamilyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tokenfamily.Hooks(f(g(h())))`.
+func (c *TokenFamilyClient) Use(hooks ...Hook) {
+	c.hooks.TokenFamily = append(c.hooks.TokenFamily, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tokenfamily.Intercept(f(g(h())))`.
+func (c *TokenFamilyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TokenFamily = append(c.inters.TokenFamily, interceptors...)
+}
+
+// Create returns a builder for creating a TokenFamily entity.
+func (c *TokenFamilyClient) Create() *TokenFamilyCreate {
+	mutation := newTokenFamilyMutation(c.config, OpCreate)
+	return &TokenFamilyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TokenFamily entities.
+func (c *TokenFamilyClient) CreateBulk(builders ...*TokenFamilyCreate) *TokenFamilyCreateBulk {
+	return &TokenFamilyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TokenFamilyClient) MapCreateBulk(slice any, setFunc func(*TokenFamilyCreate, int)) *TokenFamilyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TokenFamilyCreateBulk{err: fmt.Errorf("calling to TokenFamilyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TokenFamilyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TokenFamilyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TokenFamily.
+func (c *TokenFamilyClient) Update() *TokenFamilyUpdate {
+	mutation := newTokenFamilyMutation(c.config, OpUpdate)
+	return &TokenFamilyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TokenFamilyClient) UpdateOne(_m *TokenFamily) *TokenFamilyUpdateOne {
+	mutation := newTokenFamilyMutation(c.config, OpUpdateOne, withTokenFamily(_m))
+	return &TokenFamilyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TokenFamilyClient) UpdateOneID(id string) *TokenFamilyUpdateOne {
+	mutation := newTokenFamilyMutation(c.config, OpUpdateOne, withTokenFamilyID(id))
+	return &TokenFamilyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TokenFamily.
+func (c *TokenFamilyClient) Delete() *TokenFamilyDelete {
+	mutation := newTokenFamilyMutation(c.config, OpDelete)
+	return &TokenFamilyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TokenFamilyClient) DeleteOne(_m *TokenFamily) *TokenFamilyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TokenFamilyClient) DeleteOneID(id string) *TokenFamilyDeleteOne {
+	builder := c.Delete().Where(tokenfamily.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TokenFamilyDeleteOne{builder}
+}
+
+// Query returns a query builder for TokenFamily.
+func (c *TokenFamilyClient) Query() *TokenFamilyQuery {
+	return &TokenFamilyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTokenFamily},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TokenFamily entity by its id.
+func (c *TokenFamilyClient) Get(ctx context.Context, id string) (*TokenFamily, error) {
+	return c.Query().Where(tokenfamily.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TokenFamilyClient) GetX(ctx context.Context, id string) *TokenFamily {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TokenFamilyClient) Hooks() []Hook {
+	return c.hooks.TokenFamily
+}
+
+// Interceptors returns the client interceptors.
+func (c *TokenFamilyClient) Interceptors() []Interceptor {
+	return c.inters.TokenFamily
+}
+
+func (c *TokenFamilyClient) mutate(ctx context.Context, m *TokenFamilyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TokenFamilyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TokenFamilyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TokenFamilyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TokenFamilyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown TokenFamily mutation op: %q", m.Op())
+	}
+}
+
+// TokenNodeClient is a client for the TokenNode schema.
+type TokenNodeClient struct {
+	config
+}
+
+// NewTokenNodeClient returns a client for the TokenNode from the given config.
+func NewTokenNodeClient(c config) *TokenNodeClient {
+	return &TokenNodeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tokennode.Hooks(f(g(h())))`.
+func (c *TokenNodeClient) Use(hooks ...Hook) {
+	c.hooks.TokenNode = append(c.hooks.TokenNode, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tokennode.Intercept(f(g(h())))`.
+func (c *TokenNodeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TokenNode = append(c.inters.TokenNode, interceptors...)
+}
+
+// Create returns a builder for creating a TokenNode entity.
+func (c *TokenNodeClient) Create() *TokenNodeCreate {
+	mutation := newTokenNodeMutation(c.config, OpCreate)
+	return &TokenNodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TokenNode entities.
+func (c *TokenNodeClient) CreateBulk(builders ...*TokenNodeCreate) *TokenNodeCreateBulk {
+	return &TokenNodeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TokenNodeClient) MapCreateBulk(slice any, setFunc func(*TokenNodeCreate, int)) *TokenNodeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TokenNodeCreateBulk{err: fmt.Errorf("calling to TokenNodeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TokenNodeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TokenNodeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TokenNode.
+func (c *TokenNodeClient) Update() *TokenNodeUpdate {
+	mutation := newTokenNodeMutation(c.config, OpUpdate)
+	return &TokenNodeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TokenNodeClient) UpdateOne(_m *TokenNode) *TokenNodeUpdateOne {
+	mutation := newTokenNodeMutation(c.config, OpUpdateOne, withTokenNode(_m))
+	return &TokenNodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TokenNodeClient) UpdateOneID(id string) *TokenNodeUpdateOne {
+	mutation := newTokenNodeMutation(c.config, OpUpdateOne, withTokenNodeID(id))
+	return &TokenNodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TokenNode.
+func (c *TokenNodeClient) Delete() *TokenNodeDelete {
+	mutation := newTokenNodeMutation(c.config, OpDelete)
+	return &TokenNodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TokenNodeClient) DeleteOne(_m *TokenNode) *TokenNodeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TokenNodeClient) DeleteOneID(id string) *TokenNodeDeleteOne {
+	builder := c.Delete().Where(tokennode.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TokenNodeDeleteOne{builder}
+}
+
+// Query returns a query builder for TokenNode.
+func (c *TokenNodeClient) Query() *TokenNodeQuery {
+	return &TokenNodeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTokenNode},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TokenNode entity by its id.
+func (c *TokenNodeClient) Get(ctx context.Context, id string) (*TokenNode, error) {
+	return c.Query().Where(tokennode.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TokenNodeClient) GetX(ctx context.Context, id string) *TokenNode {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TokenNodeClient) Hooks() []Hook {
+	return c.hooks.TokenNode
+}
+
+// Interceptors returns the client interceptors.
+func (c *TokenNodeClient) Interceptors() []Interceptor {
+	return c.inters.TokenNode
+}
+
+func (c *TokenNodeClient) mutate(ctx context.Context, m *TokenNodeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TokenNodeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TokenNodeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TokenNodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TokenNodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("db: unknown TokenNode mutation op: %q", m.Op())
+	}
+}
+
 // UserIdentityClient is a client for the UserIdentity schema.
 type UserIdentityClient struct {
 	config
@@ -1896,11 +2178,12 @@ func (c *UserIdentityClient) mutate(ctx context.Context, m *UserIdentityMutation
 type (
 	hooks struct {
 		AuthCode, AuthRequest, AuthSession, Connector, DeviceRequest, DeviceToken, Keys,
-		OAuth2Client, OfflineSession, Password, RefreshToken, UserIdentity []ent.Hook
+		OAuth2Client, OfflineSession, Password, RefreshToken, TokenFamily, TokenNode,
+		UserIdentity []ent.Hook
 	}
 	inters struct {
 		AuthCode, AuthRequest, AuthSession, Connector, DeviceRequest, DeviceToken, Keys,
-		OAuth2Client, OfflineSession, Password, RefreshToken,
+		OAuth2Client, OfflineSession, Password, RefreshToken, TokenFamily, TokenNode,
 		UserIdentity []ent.Interceptor
 	}
 )

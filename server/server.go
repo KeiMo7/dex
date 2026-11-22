@@ -291,6 +291,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
+			RefreshStore:  s.issuer.Refresh,
 			Sessions:      sessions,
 		},
 		&device.Handler{

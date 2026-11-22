@@ -34,6 +34,10 @@ type Tx struct {
 	Password *PasswordClient
 	// RefreshToken is the client for interacting with the RefreshToken builders.
 	RefreshToken *RefreshTokenClient
+	// TokenFamily is the client for interacting with the TokenFamily builders.
+	TokenFamily *TokenFamilyClient
+	// TokenNode is the client for interacting with the TokenNode builders.
+	TokenNode *TokenNodeClient
 	// UserIdentity is the client for interacting with the UserIdentity builders.
 	UserIdentity *UserIdentityClient
 
@@ -178,6 +182,8 @@ func (tx *Tx) init() {
 	tx.OfflineSession = NewOfflineSessionClient(tx.config)
 	tx.Password = NewPasswordClient(tx.config)
 	tx.RefreshToken = NewRefreshTokenClient(tx.config)
+	tx.TokenFamily = NewTokenFamilyClient(tx.config)
+	tx.TokenNode = NewTokenNodeClient(tx.config)
 	tx.UserIdentity = NewUserIdentityClient(tx.config)
 }
 

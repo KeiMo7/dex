@@ -39,5 +39,11 @@ type Password func(*sql.Selector)
 // RefreshToken is the predicate function for refreshtoken builders.
 type RefreshToken func(*sql.Selector)
 
+// TokenFamily is the predicate function for tokenfamily builders.
+type TokenFamily func(*sql.Selector)
+
+// TokenNode is the predicate function for tokennode builders.
+type TokenNode func(*sql.Selector)
+
 // UserIdentity is the predicate function for useridentity builders.
 type UserIdentity func(*sql.Selector)

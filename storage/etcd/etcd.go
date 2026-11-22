@@ -26,6 +26,8 @@ const (
 	deviceTokenPrefix    = "device_token/"
 	userIdentityPrefix   = "user_identity/"
 	authSessionPrefix    = "auth_session/"
+	tokenFamilyPrefix    = "token_family/"
+	tokenNodePrefix      = "token_node/"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -123,6 +125,15 @@ func (c *conn) GarbageCollect(ctx context.Context, now time.Time) (result storag
 				result.AuthSessions++
 			}
 		}
+	}
+
+	if delErr != nil {
+		return result, delErr
+	}
+
+	result.TokenNodes, err = c.gcTokenNodes(ctx, now)
+	if err != nil {
+		return result, fmt.Errorf("gc token nodes: %v", err)
 	}
 
 	return result, delErr

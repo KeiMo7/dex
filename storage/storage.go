@@ -62,6 +62,9 @@ type GCResult struct {
 	DeviceRequests int64
 	DeviceTokens   int64
 	AuthSessions   int64
+	// TokenNodes counts expired access-token nodes whose revocation records can
+	// now be dropped because the JWT itself has reached its natural expiry.
+	TokenNodes int64
 }
 
 // IsEmpty returns whether the garbage collection result is empty or not.
@@ -70,7 +73,8 @@ func (g *GCResult) IsEmpty() bool {
 		g.AuthCodes == 0 &&
 		g.DeviceRequests == 0 &&
 		g.DeviceTokens == 0 &&
-		g.AuthSessions == 0
+		g.AuthSessions == 0 &&
+		g.TokenNodes == 0
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -149,6 +153,20 @@ type Storage interface {
 	UpdateAuthSession(ctx context.Context, id string, updater func(s AuthSession) (AuthSession, error)) error
 	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
+
+	// Refresh-token family graph (grace period, replay detection and family-wide
+	// revocation). See token_family.go for the model.
+	CreateTokenFamily(ctx context.Context, f TokenFamily) error
+	GetTokenFamily(ctx context.Context, id string) (TokenFamily, error)
+	UpdateTokenFamily(ctx context.Context, id string, updater func(f TokenFamily) (TokenFamily, error)) error
+	// DeleteTokenFamily removes a family root. Used to fully roll back a family
+	// provisioned by a rotation that later failed.
+	DeleteTokenFamily(ctx context.Context, id string) error
+	CreateTokenNode(ctx context.Context, n TokenNode) error
+	GetTokenNode(ctx context.Context, id string) (TokenNode, error)
+	ListTokenNodes(ctx context.Context, familyID string) ([]TokenNode, error)
+	UpdateTokenNode(ctx context.Context, id string, updater func(n TokenNode) (TokenNode, error)) error
+	DeleteTokenNode(ctx context.Context, id string) error
 
 	// GarbageCollect deletes all expired AuthCodes,
 	// AuthRequests, DeviceRequests, and DeviceTokens.
@@ -400,6 +418,17 @@ type RefreshToken struct {
 	// May be empty.
 	Token         string
 	ObsoleteToken string
+
+	// FamilyID names the token family graph this row belongs to. Empty on rows
+	// minted before family tracking existed; they are lazily adopted into a
+	// family on their first rotation and otherwise behave exactly as before.
+	FamilyID string
+	// ObsoleteConsumedAt records when ObsoleteToken was first reused inside its
+	// rotation grace period. Zero means the obsolete token has not been reused
+	// yet. It makes "exactly one concurrent reuse wins" a storage-level CAS: the
+	// first request flips it from zero, the rest see it set and are refused.
+	// Persisted on the row, so a restart does not reopen the grace window.
+	ObsoleteConsumedAt time.Time
 
 	CreatedAt time.Time
 	LastUsed  time.Time

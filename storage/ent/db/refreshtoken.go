@@ -44,6 +44,10 @@ type RefreshToken struct {
 	Token string `json:"token,omitempty"`
 	// ObsoleteToken holds the value of the "obsolete_token" field.
 	ObsoleteToken string `json:"obsolete_token,omitempty"`
+	// FamilyID holds the value of the "family_id" field.
+	FamilyID string `json:"family_id,omitempty"`
+	// ObsoleteConsumedAt holds the value of the "obsolete_consumed_at" field.
+	ObsoleteConsumedAt *time.Time `json:"obsolete_consumed_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastUsed holds the value of the "last_used" field.
@@ -60,9 +64,9 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case refreshtoken.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
+		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken, refreshtoken.FieldFamilyID:
 			values[i] = new(sql.NullString)
-		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
+		case refreshtoken.FieldObsoleteConsumedAt, refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -167,6 +171,19 @@ func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ObsoleteToken = value.String
 			}
+		case refreshtoken.FieldFamilyID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field family_id", values[i])
+			} else if value.Valid {
+				_m.FamilyID = value.String
+			}
+		case refreshtoken.FieldObsoleteConsumedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field obsolete_consumed_at", values[i])
+			} else if value.Valid {
+				_m.ObsoleteConsumedAt = new(time.Time)
+				*_m.ObsoleteConsumedAt = value.Time
+			}
 		case refreshtoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -255,6 +272,14 @@ func (_m *RefreshToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("obsolete_token=")
 	builder.WriteString(_m.ObsoleteToken)
+	builder.WriteString(", ")
+	builder.WriteString("family_id=")
+	builder.WriteString(_m.FamilyID)
+	builder.WriteString(", ")
+	if v := _m.ObsoleteConsumedAt; v != nil {
+		builder.WriteString("obsolete_consumed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

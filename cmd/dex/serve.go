@@ -446,6 +446,18 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
 	}
 
+	// Coordinate the rotation grace period with the access-token lifetime: an
+	// access token outlives the grace window by design, but a grace period longer
+	// than the access token lifetime widens the replay window past the point
+	// where family revocation can still catch an access token before it naturally
+	// expires. The two parameters must be tuned together.
+	if grace := refreshTokenPolicy.GraceInterval(); grace > 0 && grace > idTokensValidFor {
+		logger.Warn("refresh token grace interval (reuseInterval) exceeds the access token lifetime; "+
+			"the replay window is longer than the window in which family revocation can reach access tokens. "+
+			"Tune reuseInterval and expiry.idTokens together.",
+			"reuse_interval", grace, "id_tokens_valid_for", idTokensValidFor)
+	}
+
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
 	if featureflags.SessionsEnabled.Enabled() {

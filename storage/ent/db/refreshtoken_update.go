@@ -217,6 +217,40 @@ func (_u *RefreshTokenUpdate) SetNillableObsoleteToken(v *string) *RefreshTokenU
 	return _u
 }
 
+// SetFamilyID sets the "family_id" field.
+func (_u *RefreshTokenUpdate) SetFamilyID(v string) *RefreshTokenUpdate {
+	_u.mutation.SetFamilyID(v)
+	return _u
+}
+
+// SetNillableFamilyID sets the "family_id" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableFamilyID(v *string) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetFamilyID(*v)
+	}
+	return _u
+}
+
+// SetObsoleteConsumedAt sets the "obsolete_consumed_at" field.
+func (_u *RefreshTokenUpdate) SetObsoleteConsumedAt(v time.Time) *RefreshTokenUpdate {
+	_u.mutation.SetObsoleteConsumedAt(v)
+	return _u
+}
+
+// SetNillableObsoleteConsumedAt sets the "obsolete_consumed_at" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableObsoleteConsumedAt(v *time.Time) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetObsoleteConsumedAt(*v)
+	}
+	return _u
+}
+
+// ClearObsoleteConsumedAt clears the value of the "obsolete_consumed_at" field.
+func (_u *RefreshTokenUpdate) ClearObsoleteConsumedAt() *RefreshTokenUpdate {
+	_u.mutation.ClearObsoleteConsumedAt()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *RefreshTokenUpdate) SetCreatedAt(v time.Time) *RefreshTokenUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -366,6 +400,15 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FamilyID(); ok {
+		_spec.SetField(refreshtoken.FieldFamilyID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ObsoleteConsumedAt(); ok {
+		_spec.SetField(refreshtoken.FieldObsoleteConsumedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ObsoleteConsumedAtCleared() {
+		_spec.ClearField(refreshtoken.FieldObsoleteConsumedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)
@@ -581,6 +624,40 @@ func (_u *RefreshTokenUpdateOne) SetNillableObsoleteToken(v *string) *RefreshTok
 	return _u
 }
 
+// SetFamilyID sets the "family_id" field.
+func (_u *RefreshTokenUpdateOne) SetFamilyID(v string) *RefreshTokenUpdateOne {
+	_u.mutation.SetFamilyID(v)
+	return _u
+}
+
+// SetNillableFamilyID sets the "family_id" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableFamilyID(v *string) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetFamilyID(*v)
+	}
+	return _u
+}
+
+// SetObsoleteConsumedAt sets the "obsolete_consumed_at" field.
+func (_u *RefreshTokenUpdateOne) SetObsoleteConsumedAt(v time.Time) *RefreshTokenUpdateOne {
+	_u.mutation.SetObsoleteConsumedAt(v)
+	return _u
+}
+
+// SetNillableObsoleteConsumedAt sets the "obsolete_consumed_at" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableObsoleteConsumedAt(v *time.Time) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetObsoleteConsumedAt(*v)
+	}
+	return _u
+}
+
+// ClearObsoleteConsumedAt clears the value of the "obsolete_consumed_at" field.
+func (_u *RefreshTokenUpdateOne) ClearObsoleteConsumedAt() *RefreshTokenUpdateOne {
+	_u.mutation.ClearObsoleteConsumedAt()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *RefreshTokenUpdateOne) SetCreatedAt(v time.Time) *RefreshTokenUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -760,6 +837,15 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 	}
 	if value, ok := _u.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FamilyID(); ok {
+		_spec.SetField(refreshtoken.FieldFamilyID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ObsoleteConsumedAt(); ok {
+		_spec.SetField(refreshtoken.FieldObsoleteConsumedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ObsoleteConsumedAtCleared() {
+		_spec.ClearField(refreshtoken.FieldObsoleteConsumedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)

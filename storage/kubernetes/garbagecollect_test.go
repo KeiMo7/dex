@@ -22,7 +22,7 @@ func TestGarbageCollectConcurrentDelete(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	resources := []string{
 		resourceAuthRequest, resourceAuthCode, resourceDeviceRequest,
-		resourceDeviceToken, resourceAuthSession,
+		resourceDeviceToken, resourceAuthSession, resourceTokenNode,
 	}
 
 	for _, resource := range resources {
@@ -71,8 +71,11 @@ func TestGarbageCollectConcurrentDelete(t *testing.T) {
 				} else {
 					require.Error(t, err)
 					require.Contains(t, logs.String(), "failed to delete")
-					if resource == resourceAuthSession {
+					switch resource {
+					case resourceAuthSession:
 						want.AuthSessions = 0
+					case resourceTokenNode:
+						want.TokenNodes = 0
 					}
 				}
 				require.Equal(t, want, result)
@@ -104,7 +107,7 @@ func TestGarbageCollectAuthSessionIdleExpiry(t *testing.T) {
 func TestGarbageCollectListErrors(t *testing.T) {
 	for _, resource := range []string{
 		resourceAuthRequest, resourceAuthCode, resourceDeviceRequest,
-		resourceDeviceToken, resourceAuthSession,
+		resourceDeviceToken, resourceAuthSession, resourceTokenNode,
 	} {
 		t.Run(resource, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -132,10 +135,17 @@ func TestDeleteStillReturnsNotFound(t *testing.T) {
 }
 
 func gcTestObject(name string, expiry, idleExpiry time.Time) map[string]interface{} {
-	return map[string]interface{}{
-		"metadata": map[string]string{"name": name},
-		"expiry":   expiry, "absoluteExpiry": expiry, "idleExpiry": idleExpiry,
+	obj := map[string]interface{}{
+		"metadata":       map[string]string{"name": name},
+		"expiry":         expiry,
+		"absoluteExpiry": expiry,
+		"idleExpiry":     idleExpiry,
 	}
+	// Token nodes are collected only when they are access nodes past their own
+	// expiry; the mock marks every listed object accordingly for the GC sweep.
+	obj["kind"] = storage.TokenNodeKindAccess
+	obj["expiresAt"] = expiry
+	return obj
 }
 
 func gcTestResult(resource string) storage.GCResult {
@@ -150,6 +160,8 @@ func gcTestResult(resource string) storage.GCResult {
 		return storage.GCResult{DeviceTokens: 1}
 	case resourceAuthSession:
 		return storage.GCResult{AuthSessions: 1}
+	case resourceTokenNode:
+		return storage.GCResult{TokenNodes: 1}
 	default:
 		panic("unexpected garbage collection resource")
 	}

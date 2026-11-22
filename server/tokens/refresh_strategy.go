@@ -105,3 +105,10 @@ func (s *RefreshStrategy) AllowedToReuse(lastUsed time.Time) bool {
 	}
 	return !s.now().After(lastUsed.Add(s.reuseInterval))
 }
+
+// GraceInterval is the rotation grace period: how long an obsolete refresh
+// token stays redeemable after rotation, to absorb concurrent refresh requests.
+// Zero disables it, which is the default and preserves one-shot rotation.
+func (s *RefreshStrategy) GraceInterval() time.Duration {
+	return s.reuseInterval
+}

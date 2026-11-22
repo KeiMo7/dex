@@ -27,6 +27,8 @@ const (
 	kindDeviceToken     = "DeviceToken"
 	kindUserIdentity    = "UserIdentity"
 	kindAuthSession     = "AuthSession"
+	kindTokenFamily     = "TokenFamily"
+	kindTokenNode       = "TokenNode"
 )
 
 const (
@@ -42,6 +44,8 @@ const (
 	resourceDeviceToken     = "devicetokens"
 	resourceUserIdentity    = "useridentities"
 	resourceAuthSession     = "authsessions"
+	resourceTokenFamily     = "tokenfamilies"
+	resourceTokenNode       = "tokennodes"
 )
 
 const (
@@ -723,6 +727,23 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 	if delErr != nil {
 		return result, delErr
 	}
+
+	var tokenNodes TokenNodeList
+	if err := cli.listN(resourceTokenNode, &tokenNodes, gcResultLimit); err != nil {
+		return result, fmt.Errorf("failed to list token nodes: %v", err)
+	}
+
+	for _, node := range tokenNodes.TokenNodes {
+		if node.Kind == storage.TokenNodeKindAccess && !node.ExpiresAt.IsZero() && now.After(node.ExpiresAt) {
+			if err := cli.delete(resourceTokenNode, node.ObjectMeta.Name); err != nil && !errors.Is(err, storage.ErrNotFound) {
+				cli.logger.Error("failed to delete token node", "err", err)
+				delErr = fmt.Errorf("failed to delete token node: %v", err)
+			} else {
+				result.TokenNodes++
+			}
+		}
+	}
+
 	return result, delErr
 }
 

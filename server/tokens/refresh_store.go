@@ -43,6 +43,14 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		LastUsed:      rt.now(),
 	}
 
+	// Provision the family graph before the row, so the stored refresh token is
+	// born inside its family and a replay is traceable from its first rotation.
+	familyID, err := rt.createFamily(ctx, refresh)
+	if err != nil {
+		return "", fmt.Errorf("create token family: %w", err)
+	}
+	refresh.FamilyID = familyID
+
 	rawToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: refresh.ID, Token: refresh.Token})
 	if err != nil {
 		return "", fmt.Errorf("marshal refresh token: %w", err)
@@ -52,11 +60,15 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		return "", fmt.Errorf("create refresh token: %w", err)
 	}
 
-	// Roll back the just-created refresh token if wiring it into the offline
-	// session fails, so we never leave an orphaned token.
+	// Roll back the just-created refresh token and its graph node if wiring it
+	// into the offline session fails, so we never leave an orphaned token. The
+	// family root is intentionally kept as an audit record even when empty.
 	rollback := func() {
 		if err := rt.storage.DeleteRefresh(ctx, refresh.ID); err != nil && err != storage.ErrNotFound {
 			rt.logger.ErrorContext(ctx, "failed to roll back refresh token", "err", err)
+		}
+		if err := rt.storage.DeleteTokenNode(ctx, refresh.ID); err != nil && err != storage.ErrNotFound {
+			rt.logger.ErrorContext(ctx, "failed to roll back token node", "err", err)
 		}
 	}
 
@@ -90,6 +102,12 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 			if err := rt.storage.DeleteRefresh(ctx, oldRef.ID); err != nil && err != storage.ErrNotFound {
 				rollback()
 				return "", fmt.Errorf("delete previous refresh token: %w", err)
+			}
+			// Drop the old lineage node alongside its row. The old family root is
+			// retained for audit even though it is now empty.
+			if err := rt.storage.DeleteTokenNode(ctx, oldRef.ID); err != nil && err != storage.ErrNotFound {
+				rollback()
+				return "", fmt.Errorf("delete previous token node: %w", err)
 			}
 		}
 		if err := rt.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
@@ -144,7 +162,27 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // or lock (SQLite, memory) cannot deadlock. A concurrent refresh that lands
 // between the two reuses the new token. A failed resolve, finalize or offline
 // session update undoes the claim.
+//
+// Grace period and replay detection also live in the claim, because the
+// obsolete-secret reuse state must flip atomically with the rotation decision:
+// exactly one concurrent reuse of an obsolete secret can win the
+// ObsoleteConsumedAt compare-and-set, and an obsolete secret presented after
+// the grace period is a replay that revokes the whole family.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
+	// The caller hands in the row as it looked at lookup time. When the row is
+	// part of a family, a concurrent refresh may have rotated it in the meantime,
+	// so re-read the live row to drive the claim from current state. A legacy row
+	// with no family has no graph to race on, so it keeps the lookup snapshot and
+	// avoids an extra storage call that the deadlock-sensitive backends (SQLite
+	// on one connection, the in-memory mutex) do not expect inside Rotate.
+	if storageToken.FamilyID != "" {
+		live, err := rt.storage.GetRefresh(ctx, storageToken.ID)
+		if err != nil {
+			return "", IdentityFromClaims(storageToken.Claims), fmt.Errorf("reload refresh token: %w", err)
+		}
+		storageToken = &live
+	}
+
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
 		RefreshId: requestToken.RefreshId,
@@ -155,15 +193,22 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	mint := false
 	var claimedFrom time.Time
 	var prevObsolete string
+	var prevConsumed time.Time
+	// replayDetected is raised inside the atomic claim when an obsolete secret is
+	// presented after its grace period. The family revocation itself runs after
+	// the transaction commits, since RevokeFamily opens its own transactions.
+	replayDetected := false
 
 	// Claim: decide reuse or rotation from the live row.
 	claim := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		// Reset per execution: a backend that retries the updater (kubernetes,
 		// on conflict) must not carry a stale decision from an earlier run.
 		mint = false
+		replayDetected = false
 
 		rotationEnabled := strategy.RotationEnabled()
 		reusingAllowed := strategy.AllowedToReuse(old.LastUsed)
+		presentsObsolete := old.ObsoleteToken != "" && old.ObsoleteToken == requestToken.Token
 
 		switch {
 		case !rotationEnabled && reusingAllowed:
@@ -172,15 +217,29 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 			return old, nil
 
 		case rotationEnabled && reusingAllowed:
-			if old.Token != requestToken.Token && old.ObsoleteToken != requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
+			if old.Token != requestToken.Token && !presentsObsolete {
+				return old, ErrRefreshTokenClaimedTwice
 			}
 
-			// Return the previously generated token for requests carrying an obsolete one.
-			if old.ObsoleteToken == requestToken.Token {
+			if presentsObsolete {
+				// The single in-grace reuse is a compare-and-set on
+				// ObsoleteConsumedAt: the first concurrent request flips it from
+				// zero and redeems the current token; the rest observe it set and
+				// are refused distinctly as "already used", never rotated again.
+				if !old.ObsoleteConsumedAt.IsZero() {
+					return old, ErrRefreshTokenAlreadyUsed
+				}
+				old.ObsoleteConsumedAt = rt.now()
+				// Hand back the current token; do not rotate again or resolve the
+				// connector, so N racing refreshes share one minted token.
 				newToken.Token = old.Token
+				// Do not advance last-used while the token may still be reused.
+				lastUsed = old.LastUsed
+				old.ConnectorData = nil
+				return old, nil
 			}
 
+			// Presenting the current token inside the window.
 			// Do not advance last-used while the token may still be reused.
 			lastUsed = old.LastUsed
 			old.ConnectorData = nil
@@ -188,7 +247,18 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 
 		case rotationEnabled && !reusingAllowed:
 			if old.Token != requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
+				// Replay classification only exists once family tracking is on
+				// (a grace period is configured). A legacy row without a family
+				// keeps the historical one-shot answer: a plain claim error, with
+				// the row left in place, rather than a replay revocation.
+				if presentsObsolete && old.FamilyID != "" {
+					// An obsolete secret after its grace period is the signature of
+					// a leaked, replayed token. Surface it; the grant revokes the
+					// family once this transaction commits.
+					replayDetected = true
+					return old, ErrRefreshTokenReplayed
+				}
+				return old, ErrRefreshTokenClaimedTwice
 			}
 		}
 
@@ -196,9 +266,13 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		// reuses the new token instead of resolving the connector again.
 		claimedFrom = old.LastUsed
 		prevObsolete = old.ObsoleteToken
+		prevConsumed = old.ObsoleteConsumedAt
 		old.LastUsed = lastUsed
 		if strategy.RotationEnabled() {
 			old.ObsoleteToken = old.Token
+			// A fresh rotation opens a new grace window: the previous obsolete
+			// secret's single-use marker must not carry over.
+			old.ObsoleteConsumedAt = time.Time{}
 			newToken.Token = storage.NewID()
 			old.Token = newToken.Token
 		}
@@ -208,6 +282,17 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	}
 
 	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim); err != nil {
+		if replayDetected || errors.Is(err, ErrRefreshTokenReplayed) {
+			// Replay classification only happens for a row inside a family, so the
+			// family is always present here: revoke the whole lineage (refresh rows
+			// and access-token nodes). A revocation failure is returned rather than
+			// swallowed: fail closed.
+			if revokeErr := rt.RevokeFamily(ctx, storageToken.FamilyID, storageToken.ID, rt.now()); revokeErr != nil {
+				rt.logger.ErrorContext(ctx, "failed to revoke family after replay", "family_id", storageToken.FamilyID, "err", revokeErr)
+				return "", ident, revokeErr
+			}
+			return "", ident, ErrRefreshTokenReplayed
+		}
 		rt.logger.ErrorContext(ctx, "failed to claim refresh token rotation", "err", err)
 		return "", ident, err
 	}
@@ -218,14 +303,14 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		var idErr error
 		ident, idErr = freshIdentity(ctx)
 		if idErr != nil {
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, prevConsumed, lastUsed, claimedFrom)
 			return "", ident, idErr
 		}
 
 		// Finalize: write the refreshed claims.
 		finalize := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 			if old.Token != newToken.Token {
-				return old, errors.New("refresh token claimed twice")
+				return old, ErrRefreshTokenClaimedTwice
 			}
 
 			// Refresh the stored claims. UserID intentionally left untouched.
@@ -241,14 +326,14 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 
 		if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, finalize); err != nil {
 			rt.logger.ErrorContext(ctx, "failed to finalize refresh token rotation", "err", err)
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, prevConsumed, lastUsed, claimedFrom)
 			return "", ident, err
 		}
 	}
 
 	if err := rt.updateOfflineSession(ctx, storageToken, ident, lastUsed); err != nil {
 		if mint {
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, prevConsumed, lastUsed, claimedFrom)
 		}
 		return "", ident, err
 	}
@@ -264,7 +349,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 // undoClaim rolls a claim back after a failed resolution, finalize or offline
 // session update. The guard applies only to a row still showing our own claim;
 // an undo that itself fails is logged and otherwise ignored.
-func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, lastUsed, claimedFrom time.Time) {
+func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, prevConsumed, lastUsed, claimedFrom time.Time) {
 	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		if old.Token != mintedToken || old.LastUsed.Before(lastUsed) {
 			return old, nil
@@ -273,6 +358,7 @@ func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, m
 			old.Token = old.ObsoleteToken
 			old.ObsoleteToken = prevObsolete
 		}
+		old.ObsoleteConsumedAt = prevConsumed
 		old.LastUsed = claimedFrom
 		return old, nil
 	})

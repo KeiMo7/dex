@@ -135,10 +135,11 @@ func toStorageOfflineSession(o *db.OfflineSession) storage.OfflineSessions {
 }
 
 func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
-	return storage.RefreshToken{
+	token := storage.RefreshToken{
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		FamilyID:      r.FamilyID,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -155,6 +156,10 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 			Groups:            r.ClaimsGroups,
 		},
 	}
+	if r.ObsoleteConsumedAt != nil {
+		token.ObsoleteConsumedAt = *r.ObsoleteConsumedAt
+	}
+	return token
 }
 
 func toStoragePassword(p *db.Password) storage.Password {

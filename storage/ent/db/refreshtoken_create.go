@@ -122,6 +122,34 @@ func (_c *RefreshTokenCreate) SetNillableObsoleteToken(v *string) *RefreshTokenC
 	return _c
 }
 
+// SetFamilyID sets the "family_id" field.
+func (_c *RefreshTokenCreate) SetFamilyID(v string) *RefreshTokenCreate {
+	_c.mutation.SetFamilyID(v)
+	return _c
+}
+
+// SetNillableFamilyID sets the "family_id" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableFamilyID(v *string) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetFamilyID(*v)
+	}
+	return _c
+}
+
+// SetObsoleteConsumedAt sets the "obsolete_consumed_at" field.
+func (_c *RefreshTokenCreate) SetObsoleteConsumedAt(v time.Time) *RefreshTokenCreate {
+	_c.mutation.SetObsoleteConsumedAt(v)
+	return _c
+}
+
+// SetNillableObsoleteConsumedAt sets the "obsolete_consumed_at" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableObsoleteConsumedAt(v *time.Time) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetObsoleteConsumedAt(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *RefreshTokenCreate) SetCreatedAt(v time.Time) *RefreshTokenCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -203,6 +231,10 @@ func (_c *RefreshTokenCreate) defaults() {
 		v := refreshtoken.DefaultObsoleteToken
 		_c.mutation.SetObsoleteToken(v)
 	}
+	if _, ok := _c.mutation.FamilyID(); !ok {
+		v := refreshtoken.DefaultFamilyID
+		_c.mutation.SetFamilyID(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := refreshtoken.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -259,6 +291,9 @@ func (_c *RefreshTokenCreate) check() error {
 	}
 	if _, ok := _c.mutation.ObsoleteToken(); !ok {
 		return &ValidationError{Name: "obsolete_token", err: errors.New(`db: missing required field "RefreshToken.obsolete_token"`)}
+	}
+	if _, ok := _c.mutation.FamilyID(); !ok {
+		return &ValidationError{Name: "family_id", err: errors.New(`db: missing required field "RefreshToken.family_id"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`db: missing required field "RefreshToken.created_at"`)}
@@ -357,6 +392,14 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
 		_node.ObsoleteToken = value
+	}
+	if value, ok := _c.mutation.FamilyID(); ok {
+		_spec.SetField(refreshtoken.FieldFamilyID, field.TypeString, value)
+		_node.FamilyID = value
+	}
+	if value, ok := _c.mutation.ObsoleteConsumedAt(); ok {
+		_spec.SetField(refreshtoken.FieldObsoleteConsumedAt, field.TypeTime, value)
+		_node.ObsoleteConsumedAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)

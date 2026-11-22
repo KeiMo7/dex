@@ -77,6 +77,17 @@ func (RefreshToken) Fields() []ent.Field {
 			SchemaType(textSchema).
 			Default(""),
 
+		// Family graph: which family this row belongs to, and when its obsolete
+		// secret was first consumed inside the rotation grace period. The
+		// timestamp is nillable so zero stays NULL rather than an epoch value.
+		field.Text("family_id").
+			SchemaType(textSchema).
+			Default(""),
+		field.Time("obsolete_consumed_at").
+			SchemaType(timeSchema).
+			Nillable().
+			Optional(),
+
 		field.Time("created_at").
 			SchemaType(timeSchema).
 			Default(time.Now),

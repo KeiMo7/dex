@@ -164,6 +164,9 @@ type RefreshToken struct {
 	Token         string `json:"token"`
 	ObsoleteToken string `json:"obsolete_token"`
 
+	FamilyID           string    `json:"family_id,omitempty"`
+	ObsoleteConsumedAt time.Time `json:"obsolete_consumed_at,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	LastUsed  time.Time `json:"last_used"`
 
@@ -180,33 +183,37 @@ type RefreshToken struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:            r.ID,
-		Token:         r.Token,
-		ObsoleteToken: r.ObsoleteToken,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        toStorageClaims(r.Claims),
+		ID:                 r.ID,
+		Token:              r.Token,
+		ObsoleteToken:      r.ObsoleteToken,
+		FamilyID:           r.FamilyID,
+		ObsoleteConsumedAt: r.ObsoleteConsumedAt,
+		CreatedAt:          r.CreatedAt,
+		LastUsed:           r.LastUsed,
+		ClientID:           r.ClientID,
+		ConnectorID:        r.ConnectorID,
+		ConnectorData:      r.ConnectorData,
+		Scopes:             r.Scopes,
+		Nonce:              r.Nonce,
+		Claims:             toStorageClaims(r.Claims),
 	}
 }
 
 func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 	return RefreshToken{
-		ID:            r.ID,
-		Token:         r.Token,
-		ObsoleteToken: r.ObsoleteToken,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        fromStorageClaims(r.Claims),
+		ID:                 r.ID,
+		Token:              r.Token,
+		ObsoleteToken:      r.ObsoleteToken,
+		FamilyID:           r.FamilyID,
+		ObsoleteConsumedAt: r.ObsoleteConsumedAt,
+		CreatedAt:          r.CreatedAt,
+		LastUsed:           r.LastUsed,
+		ClientID:           r.ClientID,
+		ConnectorID:        r.ConnectorID,
+		ConnectorData:      r.ConnectorData,
+		Scopes:             r.Scopes,
+		Nonce:              r.Nonce,
+		Claims:             fromStorageClaims(r.Claims),
 	}
 }
 
@@ -453,5 +460,93 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 			CodeChallenge:       t.CodeChallenge,
 			CodeChallengeMethod: t.CodeChallengeMethod,
 		},
+	}
+}
+
+// TokenFamily is a mirrored struct from storage with JSON struct tags.
+type TokenFamily struct {
+	ID string `json:"id"`
+
+	ClientID    string `json:"client_id"`
+	UserID      string `json:"user_id"`
+	ConnectorID string `json:"connector_id"`
+
+	CreatedAt time.Time `json:"created_at"`
+
+	RevokedAt         time.Time `json:"revoked_at,omitempty"`
+	RevokeReason      string    `json:"revoke_reason,omitempty"`
+	LastReplayedToken string    `json:"last_replayed_token,omitempty"`
+}
+
+func toStorageTokenFamily(f TokenFamily) storage.TokenFamily {
+	return storage.TokenFamily{
+		ID:                f.ID,
+		ClientID:          f.ClientID,
+		UserID:            f.UserID,
+		ConnectorID:       f.ConnectorID,
+		CreatedAt:         f.CreatedAt,
+		RevokedAt:         f.RevokedAt,
+		RevokeReason:      f.RevokeReason,
+		LastReplayedToken: f.LastReplayedToken,
+	}
+}
+
+func fromStorageTokenFamily(f storage.TokenFamily) TokenFamily {
+	return TokenFamily{
+		ID:                f.ID,
+		ClientID:          f.ClientID,
+		UserID:            f.UserID,
+		ConnectorID:       f.ConnectorID,
+		CreatedAt:         f.CreatedAt,
+		RevokedAt:         f.RevokedAt,
+		RevokeReason:      f.RevokeReason,
+		LastReplayedToken: f.LastReplayedToken,
+	}
+}
+
+// TokenNode is a mirrored struct from storage with JSON struct tags.
+type TokenNode struct {
+	ID string `json:"id"`
+
+	FamilyID string `json:"family_id"`
+	ParentID string `json:"parent_id,omitempty"`
+	Kind     string `json:"kind"`
+
+	ClientID    string `json:"client_id"`
+	UserID      string `json:"user_id"`
+	ConnectorID string `json:"connector_id"`
+
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	RevokedAt time.Time `json:"revoked_at,omitempty"`
+}
+
+func toStorageTokenNode(n TokenNode) storage.TokenNode {
+	return storage.TokenNode{
+		ID:          n.ID,
+		FamilyID:    n.FamilyID,
+		ParentID:    n.ParentID,
+		Kind:        n.Kind,
+		ClientID:    n.ClientID,
+		UserID:      n.UserID,
+		ConnectorID: n.ConnectorID,
+		CreatedAt:   n.CreatedAt,
+		ExpiresAt:   n.ExpiresAt,
+		RevokedAt:   n.RevokedAt,
+	}
+}
+
+func fromStorageTokenNode(n storage.TokenNode) TokenNode {
+	return TokenNode{
+		ID:          n.ID,
+		FamilyID:    n.FamilyID,
+		ParentID:    n.ParentID,
+		Kind:        n.Kind,
+		ClientID:    n.ClientID,
+		UserID:      n.UserID,
+		ConnectorID: n.ConnectorID,
+		CreatedAt:   n.CreatedAt,
+		ExpiresAt:   n.ExpiresAt,
+		RevokedAt:   n.RevokedAt,
 	}
 }

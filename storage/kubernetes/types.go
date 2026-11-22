@@ -260,6 +260,40 @@ func customResourceDefinitions(apiVersion string) []k8sapi.CustomResourceDefinit
 				},
 			},
 		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "tokenfamilies.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "tokenfamilies",
+					Singular: "tokenfamily",
+					Kind:     "TokenFamily",
+				},
+			},
+		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "tokennodes.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "tokennodes",
+					Singular: "tokennode",
+					Kind:     "TokenNode",
+				},
+			},
+		},
 	}
 }
 
@@ -653,6 +687,9 @@ type RefreshToken struct {
 	Token         string `json:"token,omitempty"`
 	ObsoleteToken string `json:"obsoleteToken,omitempty"`
 
+	FamilyID           string    `json:"familyID,omitempty"`
+	ObsoleteConsumedAt time.Time `json:"obsoleteConsumedAt,omitempty"`
+
 	Nonce string `json:"nonce,omitempty"`
 
 	Claims        Claims `json:"claims,omitempty"`
@@ -669,17 +706,19 @@ type RefreshList struct {
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 	return storage.RefreshToken{
-		ID:            r.ObjectMeta.Name,
-		Token:         r.Token,
-		ObsoleteToken: r.ObsoleteToken,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        toStorageClaims(r.Claims),
+		ID:                 r.ObjectMeta.Name,
+		Token:              r.Token,
+		ObsoleteToken:      r.ObsoleteToken,
+		FamilyID:           r.FamilyID,
+		ObsoleteConsumedAt: r.ObsoleteConsumedAt,
+		CreatedAt:          r.CreatedAt,
+		LastUsed:           r.LastUsed,
+		ClientID:           r.ClientID,
+		ConnectorID:        r.ConnectorID,
+		ConnectorData:      r.ConnectorData,
+		Scopes:             r.Scopes,
+		Nonce:              r.Nonce,
+		Claims:             toStorageClaims(r.Claims),
 	}
 }
 
@@ -693,16 +732,18 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 			Name:      r.ID,
 			Namespace: cli.namespace,
 		},
-		Token:         r.Token,
-		ObsoleteToken: r.ObsoleteToken,
-		CreatedAt:     r.CreatedAt,
-		LastUsed:      r.LastUsed,
-		ClientID:      r.ClientID,
-		ConnectorID:   r.ConnectorID,
-		ConnectorData: r.ConnectorData,
-		Scopes:        r.Scopes,
-		Nonce:         r.Nonce,
-		Claims:        fromStorageClaims(r.Claims),
+		Token:              r.Token,
+		ObsoleteToken:      r.ObsoleteToken,
+		FamilyID:           r.FamilyID,
+		ObsoleteConsumedAt: r.ObsoleteConsumedAt,
+		CreatedAt:          r.CreatedAt,
+		LastUsed:           r.LastUsed,
+		ClientID:           r.ClientID,
+		ConnectorID:        r.ConnectorID,
+		ConnectorData:      r.ConnectorData,
+		Scopes:             r.Scopes,
+		Nonce:              r.Nonce,
+		Claims:             fromStorageClaims(r.Claims),
 	}
 }
 

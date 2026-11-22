@@ -170,6 +170,11 @@ type Handler struct {
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
 
+	// RefreshStore answers whether an access token's family has been revoked.
+	// Nil leaves access-token introspection to signature, expiry and session
+	// checks alone (used by tests that predate family tracking).
+	RefreshStore *tokens.RefreshStore
+
 	// Sessions resolves whether the browser session a token was issued under is
 	// still alive. Nil when sessions are disabled, in which case no token carries
 	// a sid and there is nothing to check.
@@ -346,6 +351,29 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 
 	if !h.sessionAlive(ctx, client, idToken.Subject, claims.SessionID) {
 		return nil, newIntrospectInactiveTokenError()
+	}
+
+	// Family revocation: an access token minted from a refresh token whose family
+	// was later revoked (a detected replay, or an admin action) must introspect
+	// as inactive even though its signature and own expiry are still good. A
+	// missing node is not a revocation — tokens predating family tracking, or
+	// whose node was garbage-collected, fall back to their natural expiry. A
+	// storage failure is a 500 rather than an active answer on an unknown state.
+	if h.RefreshStore != nil {
+		jti, err := tokens.JWTIDFromToken(token)
+		if err != nil {
+			h.Logger.ErrorContext(ctx, "failed to read access token jti", "err", err)
+			return nil, newIntrospectInternalServerError()
+		}
+		revoked, err := h.RefreshStore.IsAccessTokenRevoked(ctx, jti)
+		if err != nil {
+			h.Logger.ErrorContext(ctx, "failed to check token family revocation", "jti", jti, "err", err)
+			return nil, newIntrospectInternalServerError()
+		}
+		if revoked {
+			h.Logger.InfoContext(ctx, "access token belongs to a revoked family", "jti", jti, "client_id", client.ID)
+			return nil, newIntrospectInactiveTokenError()
+		}
 	}
 
 	return &Introspection{

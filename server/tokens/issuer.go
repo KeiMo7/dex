@@ -93,11 +93,29 @@ func (i *Issuer) IssueResponse(ctx context.Context, auth Authorization, code str
 // unique. For a client in TypedAccessTokenClients it is typed at+jwt, so it
 // is not accepted where an ID token is required.
 func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (string, time.Time, error) {
+	token, _, expiry, err := i.SignAccessTokenWithID(ctx, auth)
+	return token, expiry, err
+}
+
+// SignAccessTokenWithID is SignAccessToken plus the JWT "jti" that identifies
+// the token in the family graph. The refresh grant needs the jti to register an
+// access node so a later family revocation can reach this access token.
+func (i *Issuer) SignAccessTokenWithID(ctx context.Context, auth Authorization) (string, string, time.Time, error) {
 	typ := ""
 	if i.TypedAccessTokenClients[auth.Client.ID] {
 		typ = signer.TypeAccessToken
 	}
-	return i.signToken(ctx, auth, storage.NewID(), "", typ)
+	token, expiry, err := i.signToken(ctx, auth, storage.NewID(), "", typ)
+	if err != nil {
+		return "", "", expiry, err
+	}
+	// signToken generates the jti internally; decode just the claims to read it
+	// back rather than threading it through every caller.
+	jti, err := jwtID(token)
+	if err != nil {
+		return "", "", expiry, fmt.Errorf("read access token jti: %w", err)
+	}
+	return token, jti, expiry, nil
 }
 
 // SignIDToken mints an ID token. accessToken/code, when set, contribute

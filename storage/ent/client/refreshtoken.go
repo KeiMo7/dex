@@ -23,6 +23,8 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 		SetConnectorData(refresh.ConnectorData).
 		SetToken(refresh.Token).
 		SetObsoleteToken(refresh.ObsoleteToken).
+		SetFamilyID(refresh.FamilyID).
+		SetNillableObsoleteConsumedAt(nonZeroTime(refresh.ObsoleteConsumedAt.UTC())).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(refresh.LastUsed.UTC()).
 		SetCreatedAt(refresh.CreatedAt.UTC()).
@@ -96,6 +98,8 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		SetConnectorData(newtToken.ConnectorData).
 		SetToken(newtToken.Token).
 		SetObsoleteToken(newtToken.ObsoleteToken).
+		SetFamilyID(newtToken.FamilyID).
+		SetNillableObsoleteConsumedAt(nonZeroTime(newtToken.ObsoleteConsumedAt.UTC())).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(newtToken.LastUsed.UTC()).
 		SetCreatedAt(newtToken.CreatedAt.UTC()).
