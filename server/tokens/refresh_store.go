@@ -23,24 +23,55 @@ type RefreshStore struct {
 
 // NewRefreshStore returns a store backed by the given storage.
 func NewRefreshStore(storage storage.Storage, now func() time.Time, logger *slog.Logger) *RefreshStore {
+	if now == nil {
+		now = time.Now
+	}
 	return &RefreshStore{storage: storage, now: now, logger: logger}
+}
+
+func (rt *RefreshStore) currentTime() time.Time {
+	if rt != nil && rt.now != nil {
+		return rt.now()
+	}
+	return time.Now()
 }
 
 // Create issues a new refresh token for the authorization and records it in the
 // user's offline session. On any offline-session failure the refresh token is
 // rolled back so no orphaned token is left behind.
 func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string, error) {
+	now := rt.currentTime()
+	chainID := storage.NewID()
 	refresh := storage.RefreshToken{
 		ID:            storage.NewID(),
 		Token:         storage.NewID(),
+		ChainID:       chainID,
+		Generation:    1,
 		ClientID:      auth.Client.ID,
 		ConnectorID:   auth.ConnectorID,
 		Scopes:        auth.Scopes,
 		Claims:        auth.Claims,
 		Nonce:         auth.Nonce,
 		ConnectorData: auth.ConnectorData,
-		CreatedAt:     rt.now(),
-		LastUsed:      rt.now(),
+		CreatedAt:     now,
+		LastUsed:      now,
+	}
+	refresh.Chain = &storage.RefreshChain{
+		ID:                chainID,
+		UserID:            auth.Claims.UserID,
+		ClientID:          auth.Client.ID,
+		ConnectorID:       auth.ConnectorID,
+		CurrentGeneration: 1,
+		Status:            storage.RefreshChainStatusActive,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Generations: []storage.RefreshGeneration{{
+			ChainID:    chainID,
+			Number:     1,
+			SecretHash: hashGenerationSecret(refresh.Token),
+			IssuedAt:   now,
+			Status:     storage.RefreshGenerationStatusCurrent,
+		}},
 	}
 
 	rawToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: refresh.ID, Token: refresh.Token})
@@ -151,84 +182,148 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	}
 
 	ident := IdentityFromClaims(storageToken.Claims)
-	lastUsed := rt.now()
-	mint := false
-	var claimedFrom time.Time
-	var prevObsolete string
+	lastUsed := rt.currentTime()
+	var (
+		mint      bool
+		advanced  bool
+		replay    bool
+		replayGen int64
+		chainID   string
+		preClaim  storage.RefreshToken
+	)
+	expectedGeneration := storageToken.Generation
 
-	// Claim: decide reuse or rotation from the live row.
+	// Claim: decide idempotent reuse, rotation, superseded concurrency, or replay
+	// from the live row. The decision and any chain status flip are written by
+	// this one atomic UpdateRefreshToken call.
 	claim := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		// Reset per execution: a backend that retries the updater (kubernetes,
-		// on conflict) must not carry a stale decision from an earlier run.
-		mint = false
+		// Reset per execution: a backend that retries the updater must not carry a
+		// stale decision from an earlier run.
+		mint, advanced, replay = false, false, false
+		replayGen = 0
 
-		rotationEnabled := strategy.RotationEnabled()
+		// Keep a deep copy of the raw row for failure rollback. The updater may
+		// run more than once, so reset this on every execution.
+		preClaim = cloneRefreshToken(old)
+
+		// A live generation greater than the one the caller looked up means a
+		// concurrent request won the atomic advance. A normalized legacy view can
+		// have generation one while the raw row is still zero; that is not a race.
+		stale := old.Generation > expectedGeneration
+
+		old = normalizeRefreshChain(old, rt.currentTime())
+		chainID = old.ChainID
+		if old.Chain.IsRevoked() {
+			return old, ErrRefreshChainRevoked
+		}
+
+		match := matchRefreshSecret(old, requestToken.Token)
+		if !match.found {
+			if stale {
+				return old, ErrRefreshTokenSuperseded
+			}
+			return old, ErrRefreshTokenInvalid
+		}
+
 		reusingAllowed := strategy.AllowedToReuse(old.LastUsed)
 
-		switch {
-		case !rotationEnabled && reusingAllowed:
-			// Rotation disabled and the token was used recently: nothing to advance.
-			old.ConnectorData = nil
+		// A recognized older generation outside the idempotency window is replay.
+		// If the live row has advanced past the generation this caller snapshotted,
+		// this is instead an in-flight concurrent loser: return the distinguished
+		// superseded result and never revoke the legitimate winner's chain.
+		if !match.current && !reusingAllowed {
+			if stale {
+				return old, ErrRefreshTokenSuperseded
+			}
+			replay = true
+			replayGen = match.generation
+			revokeRefreshChain(&old, rt.currentTime(), storage.RefreshChainReasonReplay, storage.RefreshChainSourceTokenEndpoint, match.generation)
+			chainID = old.ChainID
 			return old, nil
+		}
 
-		case rotationEnabled && reusingAllowed:
-			if old.Token != requestToken.Token && old.ObsoleteToken != requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
-			}
-
-			// Return the previously generated token for requests carrying an obsolete one.
-			if old.ObsoleteToken == requestToken.Token {
-				newToken.Token = old.Token
-			}
-
-			// Do not advance last-used while the token may still be reused.
+		if reusingAllowed {
+			// Idempotent retry/concurrent duplicate: hand back the current secret,
+			// do not advance a generation and do not resolve identity again.
+			newToken.Token = old.Token
 			lastUsed = old.LastUsed
 			old.ConnectorData = nil
 			return old, nil
-
-		case rotationEnabled && !reusingAllowed:
-			if old.Token != requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
-			}
 		}
 
-		// Rotate the token here, not in the finalize, so a concurrent refresh
-		// reuses the new token instead of resolving the connector again.
-		claimedFrom = old.LastUsed
-		prevObsolete = old.ObsoleteToken
+		if !match.current {
+			// Defensive: the only non-current outside-window outcome above is
+			// replay or a concurrency error.
+			if stale {
+				return old, ErrRefreshTokenSuperseded
+			}
+			return old, ErrRefreshTokenReplayed
+		}
+
+		// Rotate here, not in finalize, so concurrent refreshes observe the new
+		// generation and reuse its result instead of resolving upstream again.
+		lastUsed = rt.currentTime()
 		old.LastUsed = lastUsed
+		old.ConnectorData = nil
+		mint = true
+
 		if strategy.RotationEnabled() {
 			old.ObsoleteToken = old.Token
 			newToken.Token = storage.NewID()
 			old.Token = newToken.Token
+			appendNextGeneration(&old, newToken.Token, lastUsed, strategy.ReuseInterval())
+			advanced = true
 		}
-		old.ConnectorData = nil
-		mint = true
 		return old, nil
 	}
 
 	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim); err != nil {
-		rt.logger.ErrorContext(ctx, "failed to claim refresh token rotation", "err", err)
-		return "", ident, err
+		if isConcurrentRefreshWriteConflict(err) {
+			// One bounded retry for backends whose optimistic transaction reports
+			// the race instead of retrying internally. On the second read the claim
+			// classifies the request as idempotent reuse or an explicit supersession.
+			err = rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim)
+		}
+		if err != nil {
+			if isConcurrentRefreshWriteConflict(err) || errors.Is(err, storage.ErrGenerationMismatch) {
+				err = fmt.Errorf("%w: %v", ErrRefreshTokenSuperseded, err)
+			}
+			switch {
+			case errors.Is(err, ErrRefreshTokenSuperseded):
+				rt.logger.InfoContext(ctx, "refresh claim superseded by concurrent rotation", "err", err)
+			case errors.Is(err, ErrRefreshChainRevoked):
+				rt.logger.WarnContext(ctx, "refresh claim rejected because chain is revoked", "err", err)
+			default:
+				rt.logger.ErrorContext(ctx, "failed to claim refresh token rotation", "err", err)
+			}
+			return "", ident, err
+		}
+	}
+
+	if replay {
+		chain := &storage.RefreshChain{ID: chainID, ClientID: storageToken.ClientID, UserID: storageToken.Claims.UserID, ConnectorID: storageToken.ConnectorID}
+		rt.audit(ctx, auditForChain(chain, AuditEventReplay, replayGen, storage.RefreshChainSourceTokenEndpoint, storage.RefreshChainReasonReplay), slog.LevelWarn)
+		rt.audit(ctx, auditForChain(chain, AuditEventChainRevoked, replayGen, storage.RefreshChainSourceTokenEndpoint, storage.RefreshChainReasonReplay), slog.LevelWarn)
+		rt.removeOfflineSessionReference(ctx, storageToken)
+		return "", ident, ErrRefreshTokenReplayed
 	}
 
 	if mint {
-		// Resolve the identity outside any transaction: the connector may read
-		// storage (the password DB does) or contact an upstream provider.
+		// Resolve identity outside any transaction: the connector may read storage
+		// or contact an upstream provider.
 		var idErr error
 		ident, idErr = freshIdentity(ctx)
 		if idErr != nil {
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, newToken.Token, lastUsed, preClaim)
 			return "", ident, idErr
 		}
 
-		// Finalize: write the refreshed claims.
+		// Finalize: write refreshed claims only while the row still shows our mint.
 		finalize := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 			if old.Token != newToken.Token {
-				return old, errors.New("refresh token claimed twice")
+				return old, ErrRefreshTokenSuperseded
 			}
 
-			// Refresh the stored claims. UserID intentionally left untouched.
 			old.Claims.Username = ident.Username
 			old.Claims.PreferredUsername = ident.PreferredUsername
 			old.Claims.Email = ident.Email
@@ -241,16 +336,28 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 
 		if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, finalize); err != nil {
 			rt.logger.ErrorContext(ctx, "failed to finalize refresh token rotation", "err", err)
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, newToken.Token, lastUsed, preClaim)
 			return "", ident, err
 		}
 	}
 
 	if err := rt.updateOfflineSession(ctx, storageToken, ident, lastUsed); err != nil {
 		if mint {
-			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			rt.undoClaim(ctx, storageToken.ID, newToken.Token, lastUsed, preClaim)
 		}
 		return "", ident, err
+	}
+
+	if advanced {
+		gen := int64(0)
+		if current, err := rt.storage.GetRefresh(ctx, storageToken.ID); err == nil {
+			gen = current.Generation
+			if current.Chain != nil {
+				chainID = current.Chain.ID
+			}
+		}
+		chain := &storage.RefreshChain{ID: chainID, ClientID: storageToken.ClientID, UserID: storageToken.Claims.UserID, ConnectorID: storageToken.ConnectorID}
+		rt.audit(ctx, auditForChain(chain, AuditEventRotation, gen, storage.RefreshChainSourceTokenEndpoint, "rotated"), slog.LevelInfo)
 	}
 
 	rawToken, err := internal.Marshal(newToken)
@@ -261,23 +368,39 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	return rawToken, ident, nil
 }
 
-// undoClaim rolls a claim back after a failed resolution, finalize or offline
-// session update. The guard applies only to a row still showing our own claim;
-// an undo that itself fails is logged and otherwise ignored.
-func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, lastUsed, claimedFrom time.Time) {
+// undoClaim restores the exact pre-claim row after failed identity resolution,
+// finalize or offline-session wiring. The guard applies only to a row still
+// showing our own mint and timestamp, so an undo never overwrites a later
+// winner. An undo failure is logged; callers fail the refresh rather than
+// handing out a token whose supporting state was not written.
+func (rt *RefreshStore) undoClaim(ctx context.Context, id, mintedToken string, lastUsed time.Time, preClaim storage.RefreshToken) {
 	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		if old.Token != mintedToken || old.LastUsed.Before(lastUsed) {
 			return old, nil
 		}
-		if rotate {
-			old.Token = old.ObsoleteToken
-			old.ObsoleteToken = prevObsolete
-		}
-		old.LastUsed = claimedFrom
-		return old, nil
+		restored := cloneRefreshToken(preClaim)
+		restored.ID = id
+		return restored, nil
 	})
 	if err != nil {
 		rt.logger.ErrorContext(ctx, "failed to undo refresh token claim", "err", err)
+	}
+}
+
+// removeOfflineSessionReference clears the client reference after replay while
+// retaining the refresh row and its revoked chain as the queryable audit state.
+func (rt *RefreshStore) removeOfflineSessionReference(ctx context.Context, refresh *storage.RefreshToken) {
+	if refresh == nil {
+		return
+	}
+	err := rt.storage.UpdateOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		if ref := old.Refresh[refresh.ClientID]; ref != nil && ref.ID == refresh.ID {
+			delete(old.Refresh, refresh.ClientID)
+		}
+		return old, nil
+	})
+	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+		rt.logger.ErrorContext(ctx, "failed to remove replayed refresh token offline reference", "err", err)
 	}
 }
 

@@ -164,6 +164,10 @@ type RefreshToken struct {
 	Token         string `json:"token"`
 	ObsoleteToken string `json:"obsolete_token"`
 
+	ChainID    string                `json:"chain_id,omitempty"`
+	Generation int64                 `json:"generation,omitempty"`
+	Chain      *storage.RefreshChain `json:"chain,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	LastUsed  time.Time `json:"last_used"`
 
@@ -183,6 +187,9 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		ChainID:       r.ChainID,
+		Generation:    r.Generation,
+		Chain:         r.Chain,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -199,6 +206,9 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		ChainID:       r.ChainID,
+		Generation:    r.Generation,
+		Chain:         r.Chain,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,

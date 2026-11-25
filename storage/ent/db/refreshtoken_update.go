@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
@@ -217,6 +218,53 @@ func (_u *RefreshTokenUpdate) SetNillableObsoleteToken(v *string) *RefreshTokenU
 	return _u
 }
 
+// SetChainID sets the "chain_id" field.
+func (_u *RefreshTokenUpdate) SetChainID(v string) *RefreshTokenUpdate {
+	_u.mutation.SetChainID(v)
+	return _u
+}
+
+// SetNillableChainID sets the "chain_id" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableChainID(v *string) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetChainID(*v)
+	}
+	return _u
+}
+
+// SetGeneration sets the "generation" field.
+func (_u *RefreshTokenUpdate) SetGeneration(v int64) *RefreshTokenUpdate {
+	_u.mutation.ResetGeneration()
+	_u.mutation.SetGeneration(v)
+	return _u
+}
+
+// SetNillableGeneration sets the "generation" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableGeneration(v *int64) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetGeneration(*v)
+	}
+	return _u
+}
+
+// AddGeneration adds value to the "generation" field.
+func (_u *RefreshTokenUpdate) AddGeneration(v int64) *RefreshTokenUpdate {
+	_u.mutation.AddGeneration(v)
+	return _u
+}
+
+// SetChainData sets the "chain_data" field.
+func (_u *RefreshTokenUpdate) SetChainData(v *storage.RefreshChain) *RefreshTokenUpdate {
+	_u.mutation.SetChainData(v)
+	return _u
+}
+
+// ClearChainData clears the value of the "chain_data" field.
+func (_u *RefreshTokenUpdate) ClearChainData() *RefreshTokenUpdate {
+	_u.mutation.ClearChainData()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *RefreshTokenUpdate) SetCreatedAt(v time.Time) *RefreshTokenUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -366,6 +414,21 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ChainID(); ok {
+		_spec.SetField(refreshtoken.FieldChainID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Generation(); ok {
+		_spec.SetField(refreshtoken.FieldGeneration, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGeneration(); ok {
+		_spec.AddField(refreshtoken.FieldGeneration, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ChainData(); ok {
+		_spec.SetField(refreshtoken.FieldChainData, field.TypeJSON, value)
+	}
+	if _u.mutation.ChainDataCleared() {
+		_spec.ClearField(refreshtoken.FieldChainData, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)
@@ -581,6 +644,53 @@ func (_u *RefreshTokenUpdateOne) SetNillableObsoleteToken(v *string) *RefreshTok
 	return _u
 }
 
+// SetChainID sets the "chain_id" field.
+func (_u *RefreshTokenUpdateOne) SetChainID(v string) *RefreshTokenUpdateOne {
+	_u.mutation.SetChainID(v)
+	return _u
+}
+
+// SetNillableChainID sets the "chain_id" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableChainID(v *string) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetChainID(*v)
+	}
+	return _u
+}
+
+// SetGeneration sets the "generation" field.
+func (_u *RefreshTokenUpdateOne) SetGeneration(v int64) *RefreshTokenUpdateOne {
+	_u.mutation.ResetGeneration()
+	_u.mutation.SetGeneration(v)
+	return _u
+}
+
+// SetNillableGeneration sets the "generation" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableGeneration(v *int64) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetGeneration(*v)
+	}
+	return _u
+}
+
+// AddGeneration adds value to the "generation" field.
+func (_u *RefreshTokenUpdateOne) AddGeneration(v int64) *RefreshTokenUpdateOne {
+	_u.mutation.AddGeneration(v)
+	return _u
+}
+
+// SetChainData sets the "chain_data" field.
+func (_u *RefreshTokenUpdateOne) SetChainData(v *storage.RefreshChain) *RefreshTokenUpdateOne {
+	_u.mutation.SetChainData(v)
+	return _u
+}
+
+// ClearChainData clears the value of the "chain_data" field.
+func (_u *RefreshTokenUpdateOne) ClearChainData() *RefreshTokenUpdateOne {
+	_u.mutation.ClearChainData()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *RefreshTokenUpdateOne) SetCreatedAt(v time.Time) *RefreshTokenUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -760,6 +870,21 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 	}
 	if value, ok := _u.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ChainID(); ok {
+		_spec.SetField(refreshtoken.FieldChainID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Generation(); ok {
+		_spec.SetField(refreshtoken.FieldGeneration, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGeneration(); ok {
+		_spec.AddField(refreshtoken.FieldGeneration, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ChainData(); ok {
+		_spec.SetField(refreshtoken.FieldChainData, field.TypeJSON, value)
+	}
+	if _u.mutation.ChainDataCleared() {
+		_spec.ClearField(refreshtoken.FieldChainData, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)

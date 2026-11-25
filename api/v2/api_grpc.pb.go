@@ -36,6 +36,9 @@ const (
 	Dex_GetDiscovery_FullMethodName                 = "/api.Dex/GetDiscovery"
 	Dex_ListRefresh_FullMethodName                  = "/api.Dex/ListRefresh"
 	Dex_RevokeRefresh_FullMethodName                = "/api.Dex/RevokeRefresh"
+	Dex_GetRefreshChain_FullMethodName              = "/api.Dex/GetRefreshChain"
+	Dex_RevokeRefreshChain_FullMethodName           = "/api.Dex/RevokeRefreshChain"
+	Dex_RevokeUserRefreshChains_FullMethodName      = "/api.Dex/RevokeUserRefreshChains"
 	Dex_VerifyPassword_FullMethodName               = "/api.Dex/VerifyPassword"
 	Dex_GetAuthSession_FullMethodName               = "/api.Dex/GetAuthSession"
 	Dex_ListAuthSessions_FullMethodName             = "/api.Dex/ListAuthSessions"
@@ -94,6 +97,14 @@ type DexClient interface {
 	//
 	// Note that each user-client pair can have only one refresh token at a time.
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
+	// GetRefreshChain returns status and generation history for one chain.
+	GetRefreshChain(ctx context.Context, in *GetRefreshChainReq, opts ...grpc.CallOption) (*GetRefreshChainResp, error)
+	// RevokeRefreshChain atomically revokes every generation in one chain. It is
+	// idempotent for an already revoked chain.
+	RevokeRefreshChain(ctx context.Context, in *RevokeRefreshChainReq, opts ...grpc.CallOption) (*RevokeRefreshChainResp, error)
+	// RevokeUserRefreshChains revokes all chains owned by a user under one
+	// connector.
+	RevokeUserRefreshChains(ctx context.Context, in *RevokeUserRefreshChainsReq, opts ...grpc.CallOption) (*RevokeUserRefreshChainsResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
 	// GetAuthSession returns an auth session by its ID.
@@ -303,6 +314,36 @@ func (c *dexClient) RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opt
 	return out, nil
 }
 
+func (c *dexClient) GetRefreshChain(ctx context.Context, in *GetRefreshChainReq, opts ...grpc.CallOption) (*GetRefreshChainResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRefreshChainResp)
+	err := c.cc.Invoke(ctx, Dex_GetRefreshChain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) RevokeRefreshChain(ctx context.Context, in *RevokeRefreshChainReq, opts ...grpc.CallOption) (*RevokeRefreshChainResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeRefreshChainResp)
+	err := c.cc.Invoke(ctx, Dex_RevokeRefreshChain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) RevokeUserRefreshChains(ctx context.Context, in *RevokeUserRefreshChainsReq, opts ...grpc.CallOption) (*RevokeUserRefreshChainsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeUserRefreshChainsResp)
+	err := c.cc.Invoke(ctx, Dex_RevokeUserRefreshChains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(VerifyPasswordResp)
@@ -485,6 +526,14 @@ type DexServer interface {
 	//
 	// Note that each user-client pair can have only one refresh token at a time.
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
+	// GetRefreshChain returns status and generation history for one chain.
+	GetRefreshChain(context.Context, *GetRefreshChainReq) (*GetRefreshChainResp, error)
+	// RevokeRefreshChain atomically revokes every generation in one chain. It is
+	// idempotent for an already revoked chain.
+	RevokeRefreshChain(context.Context, *RevokeRefreshChainReq) (*RevokeRefreshChainResp, error)
+	// RevokeUserRefreshChains revokes all chains owned by a user under one
+	// connector.
+	RevokeUserRefreshChains(context.Context, *RevokeUserRefreshChainsReq) (*RevokeUserRefreshChainsResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
 	// GetAuthSession returns an auth session by its ID.
@@ -574,6 +623,15 @@ func (UnimplementedDexServer) ListRefresh(context.Context, *ListRefreshReq) (*Li
 }
 func (UnimplementedDexServer) RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeRefresh not implemented")
+}
+func (UnimplementedDexServer) GetRefreshChain(context.Context, *GetRefreshChainReq) (*GetRefreshChainResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRefreshChain not implemented")
+}
+func (UnimplementedDexServer) RevokeRefreshChain(context.Context, *RevokeRefreshChainReq) (*RevokeRefreshChainResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeRefreshChain not implemented")
+}
+func (UnimplementedDexServer) RevokeUserRefreshChains(context.Context, *RevokeUserRefreshChainsReq) (*RevokeUserRefreshChainsResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeUserRefreshChains not implemented")
 }
 func (UnimplementedDexServer) VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
@@ -944,6 +1002,60 @@ func _Dex_RevokeRefresh_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_GetRefreshChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRefreshChainReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetRefreshChain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetRefreshChain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetRefreshChain(ctx, req.(*GetRefreshChainReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_RevokeRefreshChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRefreshChainReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).RevokeRefreshChain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_RevokeRefreshChain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).RevokeRefreshChain(ctx, req.(*RevokeRefreshChainReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_RevokeUserRefreshChains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeUserRefreshChainsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).RevokeUserRefreshChains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_RevokeUserRefreshChains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).RevokeUserRefreshChains(ctx, req.(*RevokeUserRefreshChainsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(VerifyPasswordReq)
 	if err := dec(in); err != nil {
@@ -1270,6 +1382,18 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeRefresh",
 			Handler:    _Dex_RevokeRefresh_Handler,
+		},
+		{
+			MethodName: "GetRefreshChain",
+			Handler:    _Dex_GetRefreshChain_Handler,
+		},
+		{
+			MethodName: "RevokeRefreshChain",
+			Handler:    _Dex_RevokeRefreshChain_Handler,
+		},
+		{
+			MethodName: "RevokeUserRefreshChains",
+			Handler:    _Dex_RevokeUserRefreshChains_Handler,
 		},
 		{
 			MethodName: "VerifyPassword",

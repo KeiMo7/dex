@@ -322,9 +322,10 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			chain_id, generation, chain_data
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
@@ -332,6 +333,7 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
 		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+		r.ChainID, r.Generation, encoder(r.Chain),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -343,47 +345,78 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 }
 
 func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
-	return c.ExecTx(func(tx *trans) error {
-		r, err := getRefresh(ctx, tx, id)
-		if err != nil {
-			return err
+	// One optimistic retry bounds a lost generation compare. The UPDATE itself
+	// carries AND generation = readGeneration, so two racing writers cannot both
+	// commit the same read-modify-write sequence even on read-committed databases.
+	for attempt := 0; attempt < 2; attempt++ {
+		err := c.ExecTx(func(tx *trans) error {
+			r, err := getRefresh(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			readGeneration := r.Generation
+			if r, err = updater(r); err != nil {
+				return err
+			}
+			result, err := tx.Exec(`
+				update refresh_token
+				set
+					client_id = $1,
+					scopes = $2,
+					nonce = $3,
+					claims_user_id = $4,
+					claims_username = $5,
+					claims_preferred_username = $6,
+					claims_email = $7,
+					claims_email_verified = $8,
+					claims_groups = $9,
+					connector_id = $10,
+					connector_data = $11,
+					token = $12,
+	                obsolete_token = $13,
+					created_at = $14,
+					last_used = $15,
+					chain_id = $16,
+					generation = $17,
+					chain_data = $18
+				where
+					id = $19 and generation = $20
+			`,
+				r.ClientID, encoder(r.Scopes), r.Nonce,
+				r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
+				r.Claims.Email, r.Claims.EmailVerified,
+				encoder(r.Claims.Groups),
+				r.ConnectorID, r.ConnectorData,
+				r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+				r.ChainID, r.Generation, encoder(r.Chain), id, readGeneration,
+			)
+			if err != nil {
+				return fmt.Errorf("update refresh token: %v", err)
+			}
+			affected, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("refresh token rows affected: %v", err)
+			}
+			if affected == 0 {
+				// MySQL can report zero changed rows when an UPDATE matched but
+				// all values were unchanged. Distinguish that no-op from a lost
+				// generation compare with a read inside the same transaction.
+				var currentGeneration int64
+				if qerr := tx.QueryRow(`select generation from refresh_token where id = $1`, id).Scan(&currentGeneration); qerr != nil {
+					return fmt.Errorf("check refresh token generation: %w", qerr)
+				}
+				if currentGeneration != readGeneration {
+					return storage.ErrGenerationMismatch
+				}
+			}
+			return nil
+		})
+		if errors.Is(err, storage.ErrGenerationMismatch) && attempt == 0 {
+			continue
 		}
-		if r, err = updater(r); err != nil {
-			return err
-		}
-		_, err = tx.Exec(`
-			update refresh_token
-			set
-				client_id = $1,
-				scopes = $2,
-				nonce = $3,
-				claims_user_id = $4,
-				claims_username = $5,
-				claims_preferred_username = $6,
-				claims_email = $7,
-				claims_email_verified = $8,
-				claims_groups = $9,
-				connector_id = $10,
-				connector_data = $11,
-				token = $12,
-                obsolete_token = $13,
-				created_at = $14,
-				last_used = $15
-			where
-				id = $16
-		`,
-			r.ClientID, encoder(r.Scopes), r.Nonce,
-			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
-			r.Claims.Email, r.Claims.EmailVerified,
-			encoder(r.Claims.Groups),
-			r.ConnectorID, r.ConnectorData,
-			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
-		)
-		if err != nil {
-			return fmt.Errorf("update refresh token: %v", err)
-		}
-		return nil
-	})
+		return err
+	}
+	return storage.ErrGenerationMismatch
 }
 
 func (c *conn) GetRefresh(ctx context.Context, id string) (storage.RefreshToken, error) {
@@ -398,7 +431,8 @@ func getRefresh(ctx context.Context, q querier, id string) (storage.RefreshToken
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			chain_id, generation, chain_data
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -410,7 +444,8 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used,
+			chain_id, generation, chain_data
 		from refresh_token;
 	`)
 	if err != nil {
@@ -440,6 +475,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
 		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
+		&r.ChainID, &r.Generation, decoder(&r.Chain),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

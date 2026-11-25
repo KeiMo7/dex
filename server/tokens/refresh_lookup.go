@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,7 +17,56 @@ var (
 	ErrRefreshTokenInvalid              = errors.New("refresh token is invalid or has already been claimed")
 	ErrRefreshTokenExpired              = errors.New("refresh token expired")
 	ErrRefreshTokenClaimedByOtherClient = errors.New("refresh token claimed by another client")
+
+	// ErrRefreshTokenReplayed means a recognized older generation was presented
+	// outside its idempotency window. The refresh store atomically revokes the
+	// whole chain when it commits that decision.
+	ErrRefreshTokenReplayed = errors.New("refresh token generation replayed")
+	// ErrRefreshChainRevoked means the chain was already revoked by replay or an
+	// administrator.
+	ErrRefreshChainRevoked = errors.New("refresh token chain revoked")
+	// ErrRefreshTokenSuperseded means another concurrent request won the atomic
+	// generation update and the caller did not receive the idempotent result.
+	ErrRefreshTokenSuperseded = errors.New("refresh token generation superseded by another request")
+	// ErrRefreshChainUnavailable means chain state could not be read or written.
+	// Callers fail closed rather than returning a partially valid chain.
+	ErrRefreshChainUnavailable = errors.New("refresh token chain state unavailable")
+
+	// Compatibility aliases for callers/tests using slightly different names.
+	ErrRefreshTokenReplay        = ErrRefreshTokenReplayed
+	ErrReplayDetected            = ErrRefreshTokenReplayed
+	ErrTokenReplayed             = ErrRefreshTokenReplayed
+	ErrRefreshTokenAlreadyUsed   = ErrRefreshTokenSuperseded
+	ErrRefreshTokenClaimedTwice  = ErrRefreshTokenSuperseded
+	ErrRefreshTokenSupersededBy  = ErrRefreshTokenSuperseded
+	ErrRefreshChainUnavailableOp = ErrRefreshChainUnavailable
+	ErrRefreshTokenChainRevoked  = ErrRefreshChainRevoked
+	ErrChainRevoked              = ErrRefreshChainRevoked
+	ErrRefreshTokenFamilyRevoked = ErrRefreshChainRevoked
 )
+
+// ReplayCandidateError is returned by LookupRefreshToken when a recognized old
+// generation is outside its reuse window. It carries the live row so the grant
+// can perform the atomic chain-revocation step instead of losing the evidence.
+type ReplayCandidateError struct {
+	Refresh    *storage.RefreshToken
+	Generation int64
+	Err        error
+}
+
+func (e *ReplayCandidateError) Error() string {
+	if e == nil || e.Err == nil {
+		return ErrRefreshTokenReplayed.Error()
+	}
+	return e.Err.Error()
+}
+
+func (e *ReplayCandidateError) Unwrap() error {
+	if e == nil || e.Err == nil {
+		return ErrRefreshTokenReplayed
+	}
+	return e.Err
+}
 
 // LookupRefreshToken validates a refresh token against storage: it exists,
 // belongs to clientID when one is given, has not been claimed twice, and has not
@@ -46,28 +94,41 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 		return nil, ErrRefreshTokenClaimedByOtherClient
 	}
 
-	// Constant-time comparison of the token secret: introspection reaches this
-	// path unauthenticated, so a byte-by-byte '!=' would leak the secret via
-	// timing. Matches the client-secret/nonce comparisons elsewhere in the server.
-	if subtle.ConstantTimeCompare([]byte(refresh.Token), []byte(token.Token)) != 1 {
-		switch {
-		case !strategy.AllowedToReuse(refresh.LastUsed):
-			fallthrough
-		case subtle.ConstantTimeCompare([]byte(refresh.ObsoleteToken), []byte(token.Token)) != 1:
-			fallthrough
-		case refresh.ObsoleteToken == "":
-			logger.ErrorContext(ctx, "refresh token claimed twice", "token_id", refresh.ID)
-			return nil, ErrRefreshTokenInvalid
-		}
-	}
-
+	// Expiry is evaluated before secret/replay classification. Presenting an
+	// expired generation must only produce ErrRefreshTokenExpired; it must not
+	// create a replay audit event or revoke the chain.
 	if strategy.CompletelyExpired(refresh.CreatedAt) {
-		logger.ErrorContext(ctx, "refresh token expired", "token_id", refresh.ID)
+		logger.InfoContext(ctx, "refresh token expired", "token_id", refresh.ID)
 		return nil, ErrRefreshTokenExpired
 	}
 	if strategy.ExpiredBecauseUnused(refresh.LastUsed) {
-		logger.ErrorContext(ctx, "refresh token expired due to inactivity", "token_id", refresh.ID)
+		logger.InfoContext(ctx, "refresh token expired due to inactivity", "token_id", refresh.ID)
 		return nil, ErrRefreshTokenExpired
+	}
+
+	if refresh.Chain.IsRevoked() {
+		logger.WarnContext(ctx, "refresh token chain is revoked", "token_id", refresh.ID)
+		return &refresh, ErrRefreshChainRevoked
+	}
+
+	// Normalize the in-memory view so legacy rows and durable generation history
+	// use the same matching code. This does not write storage; the refresh claim
+	// atomically adopts the row if it is used.
+	refresh = normalizeRefreshChain(refresh, strategy.currentTime())
+	match := matchRefreshSecret(refresh, token.Token)
+	if !match.found {
+		logger.InfoContext(ctx, "refresh token generation not found", "token_id", refresh.ID)
+		return nil, ErrRefreshTokenInvalid
+	}
+
+	// Non-current generations are idempotent retries inside the reuse window.
+	// Outside it, hand the live row to Rotate so the replay decision and chain
+	// revocation commit atomically.
+	if !match.current && !strategy.AllowedToReuse(refresh.LastUsed) {
+		return &refresh, &ReplayCandidateError{
+			Refresh:    &refresh,
+			Generation: match.generation,
+		}
 	}
 
 	return &refresh, nil

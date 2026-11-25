@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net"
 	"net/http"
 	"path"
 
@@ -72,6 +73,12 @@ func (m mountMux) wrap(name string, h http.Handler) http.HandlerFunc {
 				rCtx = reqctx.WithRemoteIP(rCtx, realIP)
 			}
 		}
+		if _, ok := rCtx.Value(reqctx.RequestKeyRemoteIP).(string); !ok {
+			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host != "" {
+				rCtx = reqctx.WithRemoteIP(rCtx, host)
+			}
+		}
+
 		m.c.Instrument(name, h)(w, r.WithContext(rCtx))
 	}
 }

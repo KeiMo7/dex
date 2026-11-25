@@ -21,6 +21,12 @@ var (
 
 	// ErrAlreadyExists is the error returned by storages if a resource ID is taken during a create.
 	ErrAlreadyExists = errors.New("ID already exists")
+
+	// ErrGenerationMismatch is returned or reported by conditional refresh-token
+	// updates when the row no longer carries the generation the caller expected.
+	// Some methods report the same condition as (current, false, nil); the sentinel
+	// lets transactional updater implementations express the conflict directly.
+	ErrGenerationMismatch = errors.New("refresh token generation mismatch")
 )
 
 // Kubernetes only allows lower case letters for names.
@@ -143,6 +149,13 @@ type Storage interface {
 	UpdateKeys(ctx context.Context, updater func(old Keys) (Keys, error)) error
 	UpdateAuthRequest(ctx context.Context, id string, updater func(a AuthRequest) (AuthRequest, error)) error
 	UpdateRefreshToken(ctx context.Context, id string, updater func(r RefreshToken) (RefreshToken, error)) error
+	// CompareAndSwapRefreshTokenGeneration applies next only when the stored
+	// refresh token still has expectedGeneration. The check and write are atomic
+	// in every implementation (row/CAS transaction, object resourceVersion, or
+	// serialized mutex). On a lost race it returns the current row and
+	// swapped=false without treating the conflict as an infrastructure error.
+	// A missing row returns ErrNotFound.
+	CompareAndSwapRefreshTokenGeneration(ctx context.Context, id string, expectedGeneration int64, next RefreshToken) (current RefreshToken, swapped bool, err error)
 	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
@@ -400,6 +413,18 @@ type RefreshToken struct {
 	// May be empty.
 	Token         string
 	ObsoleteToken string
+
+	// ChainID identifies the reuse/replay lineage. It is independently random and
+	// is never put in the opaque client token. Empty on rows created before chain
+	// tracking; such rows are adopted on their first successful rotation.
+	ChainID string
+	// Generation is the compare-and-swap version of the chain's current secret.
+	// Legacy rows have generation zero until adopted; newly created tokens start at
+	// one and every successful rotation advances it by one.
+	Generation int64
+	// Chain contains the durable generation history and whole-chain status. It may
+	// be nil on legacy rows; callers must adopt/initialize it atomically.
+	Chain *RefreshChain
 
 	CreatedAt time.Time
 	LastUsed  time.Time

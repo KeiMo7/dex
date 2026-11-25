@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
 
@@ -122,6 +123,40 @@ func (_c *RefreshTokenCreate) SetNillableObsoleteToken(v *string) *RefreshTokenC
 	return _c
 }
 
+// SetChainID sets the "chain_id" field.
+func (_c *RefreshTokenCreate) SetChainID(v string) *RefreshTokenCreate {
+	_c.mutation.SetChainID(v)
+	return _c
+}
+
+// SetNillableChainID sets the "chain_id" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableChainID(v *string) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetChainID(*v)
+	}
+	return _c
+}
+
+// SetGeneration sets the "generation" field.
+func (_c *RefreshTokenCreate) SetGeneration(v int64) *RefreshTokenCreate {
+	_c.mutation.SetGeneration(v)
+	return _c
+}
+
+// SetNillableGeneration sets the "generation" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableGeneration(v *int64) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetGeneration(*v)
+	}
+	return _c
+}
+
+// SetChainData sets the "chain_data" field.
+func (_c *RefreshTokenCreate) SetChainData(v *storage.RefreshChain) *RefreshTokenCreate {
+	_c.mutation.SetChainData(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *RefreshTokenCreate) SetCreatedAt(v time.Time) *RefreshTokenCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -203,6 +238,14 @@ func (_c *RefreshTokenCreate) defaults() {
 		v := refreshtoken.DefaultObsoleteToken
 		_c.mutation.SetObsoleteToken(v)
 	}
+	if _, ok := _c.mutation.ChainID(); !ok {
+		v := refreshtoken.DefaultChainID
+		_c.mutation.SetChainID(v)
+	}
+	if _, ok := _c.mutation.Generation(); !ok {
+		v := refreshtoken.DefaultGeneration
+		_c.mutation.SetGeneration(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := refreshtoken.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -259,6 +302,12 @@ func (_c *RefreshTokenCreate) check() error {
 	}
 	if _, ok := _c.mutation.ObsoleteToken(); !ok {
 		return &ValidationError{Name: "obsolete_token", err: errors.New(`db: missing required field "RefreshToken.obsolete_token"`)}
+	}
+	if _, ok := _c.mutation.ChainID(); !ok {
+		return &ValidationError{Name: "chain_id", err: errors.New(`db: missing required field "RefreshToken.chain_id"`)}
+	}
+	if _, ok := _c.mutation.Generation(); !ok {
+		return &ValidationError{Name: "generation", err: errors.New(`db: missing required field "RefreshToken.generation"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`db: missing required field "RefreshToken.created_at"`)}
@@ -357,6 +406,18 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ObsoleteToken(); ok {
 		_spec.SetField(refreshtoken.FieldObsoleteToken, field.TypeString, value)
 		_node.ObsoleteToken = value
+	}
+	if value, ok := _c.mutation.ChainID(); ok {
+		_spec.SetField(refreshtoken.FieldChainID, field.TypeString, value)
+		_node.ChainID = value
+	}
+	if value, ok := _c.mutation.Generation(); ok {
+		_spec.SetField(refreshtoken.FieldGeneration, field.TypeInt64, value)
+		_node.Generation = value
+	}
+	if value, ok := _c.mutation.ChainData(); ok {
+		_spec.SetField(refreshtoken.FieldChainData, field.TypeJSON, value)
+		_node.ChainData = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(refreshtoken.FieldCreatedAt, field.TypeTime, value)

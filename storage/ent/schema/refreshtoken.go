@@ -5,6 +5,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
+
+	"github.com/dexidp/dex/storage"
 )
 
 /* Original SQL table:
@@ -76,6 +78,14 @@ func (RefreshToken) Fields() []ent.Field {
 		field.Text("obsolete_token").
 			SchemaType(textSchema).
 			Default(""),
+
+		field.Text("chain_id").
+			SchemaType(textSchema).
+			Default(""),
+		field.Int64("generation").
+			Default(0),
+		field.JSON("chain_data", &storage.RefreshChain{}).
+			Optional(),
 
 		field.Time("created_at").
 			SchemaType(timeSchema).

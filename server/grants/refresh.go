@@ -60,7 +60,15 @@ func (g *refresh) ConnectorID(ctx context.Context, req *Request, client storage.
 
 	refreshToken, err := tokens.LookupRefreshToken(ctx, g.storage, g.policy, g.logger, &client.ID, token)
 	if err != nil {
-		return "", refreshLookupError(err)
+		var replayCandidate *tokens.ReplayCandidateError
+		if errors.As(err, &replayCandidate) && replayCandidate.Refresh != nil {
+			// Recognition and client ownership succeeded. Defer the atomic replay
+			// verdict/chain revocation to Authorize -> RefreshStore.Rotate so the
+			// status flip and generation compare commit as one decision.
+			refreshToken = replayCandidate.Refresh
+		} else {
+			return "", refreshLookupError(err)
+		}
 	}
 
 	req.refresh, req.refreshID = refreshToken, token
@@ -323,10 +331,16 @@ func parseRefreshToken(code string) (*internal.RefreshToken, *oauth2.Error) {
 func refreshLookupError(err error) *oauth2.Error {
 	const claimedDesc = "Refresh token is invalid or has already been claimed by another client."
 	switch {
-	case errors.Is(err, tokens.ErrRefreshTokenInvalid), errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient):
-		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: claimedDesc, Status: http.StatusBadRequest}
 	case errors.Is(err, tokens.ErrRefreshTokenExpired):
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token expired.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenSuperseded):
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token generation was superseded by another concurrent refresh.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenReplayed), errors.Is(err, tokens.ErrRefreshChainRevoked):
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: claimedDesc, Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshChainUnavailable):
+		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+	case errors.Is(err, tokens.ErrRefreshTokenInvalid), errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient):
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: claimedDesc, Status: http.StatusBadRequest}
 	default:
 		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
@@ -339,10 +353,18 @@ func refreshLookupError(err error) *oauth2.Error {
 // is a server error.
 // https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 func rotateError(err error) *oauth2.Error {
-	if upstreamRejected(err) {
+	switch {
+	case errors.Is(err, tokens.ErrRefreshTokenSuperseded):
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token generation was superseded by another concurrent refresh.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshTokenReplayed), errors.Is(err, tokens.ErrRefreshChainRevoked):
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token is invalid or has already been claimed by another client.", Status: http.StatusBadRequest}
+	case errors.Is(err, tokens.ErrRefreshChainUnavailable):
+		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+	case upstreamRejected(err):
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "The upstream identity provider rejected the refresh token.", Status: http.StatusBadRequest}
+	default:
+		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
-	return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 }
 
 // upstreamRejected reports whether the upstream answered the connector's refresh

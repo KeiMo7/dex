@@ -119,6 +119,16 @@ func ObsoleteToken(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldObsoleteToken, v))
 }
 
+// ChainID applies equality check predicate on the "chain_id" field. It's identical to ChainIDEQ.
+func ChainID(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldChainID, v))
+}
+
+// Generation applies equality check predicate on the "generation" field. It's identical to GenerationEQ.
+func Generation(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldGeneration, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldCreatedAt, v))
@@ -792,6 +802,121 @@ func ObsoleteTokenEqualFold(v string) predicate.RefreshToken {
 // ObsoleteTokenContainsFold applies the ContainsFold predicate on the "obsolete_token" field.
 func ObsoleteTokenContainsFold(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldContainsFold(FieldObsoleteToken, v))
+}
+
+// ChainIDEQ applies the EQ predicate on the "chain_id" field.
+func ChainIDEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldChainID, v))
+}
+
+// ChainIDNEQ applies the NEQ predicate on the "chain_id" field.
+func ChainIDNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldChainID, v))
+}
+
+// ChainIDIn applies the In predicate on the "chain_id" field.
+func ChainIDIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldChainID, vs...))
+}
+
+// ChainIDNotIn applies the NotIn predicate on the "chain_id" field.
+func ChainIDNotIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldChainID, vs...))
+}
+
+// ChainIDGT applies the GT predicate on the "chain_id" field.
+func ChainIDGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldChainID, v))
+}
+
+// ChainIDGTE applies the GTE predicate on the "chain_id" field.
+func ChainIDGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldChainID, v))
+}
+
+// ChainIDLT applies the LT predicate on the "chain_id" field.
+func ChainIDLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldChainID, v))
+}
+
+// ChainIDLTE applies the LTE predicate on the "chain_id" field.
+func ChainIDLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldChainID, v))
+}
+
+// ChainIDContains applies the Contains predicate on the "chain_id" field.
+func ChainIDContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContains(FieldChainID, v))
+}
+
+// ChainIDHasPrefix applies the HasPrefix predicate on the "chain_id" field.
+func ChainIDHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasPrefix(FieldChainID, v))
+}
+
+// ChainIDHasSuffix applies the HasSuffix predicate on the "chain_id" field.
+func ChainIDHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasSuffix(FieldChainID, v))
+}
+
+// ChainIDEqualFold applies the EqualFold predicate on the "chain_id" field.
+func ChainIDEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldChainID, v))
+}
+
+// ChainIDContainsFold applies the ContainsFold predicate on the "chain_id" field.
+func ChainIDContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldChainID, v))
+}
+
+// GenerationEQ applies the EQ predicate on the "generation" field.
+func GenerationEQ(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldGeneration, v))
+}
+
+// GenerationNEQ applies the NEQ predicate on the "generation" field.
+func GenerationNEQ(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldGeneration, v))
+}
+
+// GenerationIn applies the In predicate on the "generation" field.
+func GenerationIn(vs ...int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldGeneration, vs...))
+}
+
+// GenerationNotIn applies the NotIn predicate on the "generation" field.
+func GenerationNotIn(vs ...int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldGeneration, vs...))
+}
+
+// GenerationGT applies the GT predicate on the "generation" field.
+func GenerationGT(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldGeneration, v))
+}
+
+// GenerationGTE applies the GTE predicate on the "generation" field.
+func GenerationGTE(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldGeneration, v))
+}
+
+// GenerationLT applies the LT predicate on the "generation" field.
+func GenerationLT(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldGeneration, v))
+}
+
+// GenerationLTE applies the LTE predicate on the "generation" field.
+func GenerationLTE(v int64) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldGeneration, v))
+}
+
+// ChainDataIsNil applies the IsNil predicate on the "chain_data" field.
+func ChainDataIsNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIsNull(FieldChainData))
+}
+
+// ChainDataNotNil applies the NotNil predicate on the "chain_data" field.
+func ChainDataNotNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotNull(FieldChainData))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

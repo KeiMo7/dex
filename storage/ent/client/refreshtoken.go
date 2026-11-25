@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"errors"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/ent/db"
+	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
 
 // CreateRefresh saves provided refresh token into the database.
@@ -23,6 +26,9 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 		SetConnectorData(refresh.ConnectorData).
 		SetToken(refresh.Token).
 		SetObsoleteToken(refresh.ObsoleteToken).
+		SetChainID(refresh.ChainID).
+		SetGeneration(refresh.Generation).
+		SetChainData(refresh.Chain).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(refresh.LastUsed.UTC()).
 		SetCreatedAt(refresh.CreatedAt.UTC()).
@@ -67,6 +73,20 @@ func (d *Database) DeleteRefresh(ctx context.Context, id string) error {
 
 // UpdateRefreshToken changes a refresh token by id using an updater function and saves it to the database.
 func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	// One bounded retry handles a lost generation compare. The conditional
+	// UpdateOne WHERE generation = readGeneration makes the compare-and-write
+	// atomic even when the SQL transaction is not serializable.
+	for attempt := 0; attempt < 2; attempt++ {
+		err := d.updateRefreshTokenOnce(ctx, id, updater)
+		if errors.Is(err, storage.ErrGenerationMismatch) && attempt == 0 {
+			continue
+		}
+		return err
+	}
+	return storage.ErrGenerationMismatch
+}
+
+func (d *Database) updateRefreshTokenOnce(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update refresh token tx: %w", err)
@@ -76,6 +96,7 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 	if err != nil {
 		return rollback(tx, "update refresh token database: %w", err)
 	}
+	readGeneration := token.Generation
 
 	newtToken, err := updater(toStorageRefreshToken(token))
 	if err != nil {
@@ -83,6 +104,7 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 	}
 
 	_, err = tx.RefreshToken.UpdateOneID(newtToken.ID).
+		Where(refreshtoken.GenerationEQ(readGeneration)).
 		SetClientID(newtToken.ClientID).
 		SetScopes(newtToken.Scopes).
 		SetNonce(newtToken.Nonce).
@@ -96,11 +118,18 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		SetConnectorData(newtToken.ConnectorData).
 		SetToken(newtToken.Token).
 		SetObsoleteToken(newtToken.ObsoleteToken).
+		SetChainID(newtToken.ChainID).
+		SetGeneration(newtToken.Generation).
+		SetChainData(newtToken.Chain).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(newtToken.LastUsed.UTC()).
 		SetCreatedAt(newtToken.CreatedAt.UTC()).
 		Save(ctx)
 	if err != nil {
+		if db.IsNotFound(err) {
+			_ = tx.Rollback()
+			return storage.ErrGenerationMismatch
+		}
 		return rollback(tx, "update refresh token uploading: %w", err)
 	}
 

@@ -39,6 +39,12 @@ const (
 	FieldToken = "token"
 	// FieldObsoleteToken holds the string denoting the obsolete_token field in the database.
 	FieldObsoleteToken = "obsolete_token"
+	// FieldChainID holds the string denoting the chain_id field in the database.
+	FieldChainID = "chain_id"
+	// FieldGeneration holds the string denoting the generation field in the database.
+	FieldGeneration = "generation"
+	// FieldChainData holds the string denoting the chain_data field in the database.
+	FieldChainData = "chain_data"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastUsed holds the string denoting the last_used field in the database.
@@ -63,6 +69,9 @@ var Columns = []string{
 	FieldConnectorData,
 	FieldToken,
 	FieldObsoleteToken,
+	FieldChainID,
+	FieldGeneration,
+	FieldChainData,
 	FieldCreatedAt,
 	FieldLastUsed,
 }
@@ -90,6 +99,10 @@ var (
 	DefaultToken string
 	// DefaultObsoleteToken holds the default value on creation for the "obsolete_token" field.
 	DefaultObsoleteToken string
+	// DefaultChainID holds the default value on creation for the "chain_id" field.
+	DefaultChainID string
+	// DefaultGeneration holds the default value on creation for the "generation" field.
+	DefaultGeneration int64
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultLastUsed holds the default value on creation for the "last_used" field.
@@ -154,6 +167,16 @@ func ByToken(opts ...sql.OrderTermOption) OrderOption {
 // ByObsoleteToken orders the results by the obsolete_token field.
 func ByObsoleteToken(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldObsoleteToken, opts...).ToFunc()
+}
+
+// ByChainID orders the results by the chain_id field.
+func ByChainID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChainID, opts...).ToFunc()
+}
+
+// ByGeneration orders the results by the generation field.
+func ByGeneration(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGeneration, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

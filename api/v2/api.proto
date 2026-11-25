@@ -292,6 +292,65 @@ message RevokeRefreshResp {
   bool not_found = 1;
 }
 
+// RefreshTokenGeneration is the audit/status view of one generation in a
+// refresh-token chain. It never contains token material.
+message RefreshTokenGeneration {
+  int64 generation = 1;
+  string status = 2;
+  string reason = 3;
+  string source = 4;
+  int64 issued_at = 5;
+  int64 expires_at = 6;
+  int64 revoked_at = 7;
+}
+
+// RefreshTokenChain is the management-plane status of an ordered refresh-token
+// lineage. Chain IDs are independent of the opaque token presented by clients.
+message RefreshTokenChain {
+  string id = 1;
+  string user_id = 2;
+  string client_id = 3;
+  string connector_id = 4;
+  int64 current_generation = 5;
+  string status = 6;
+  string reason = 7;
+  string source = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  int64 revoked_at = 11;
+  repeated RefreshTokenGeneration generations = 12;
+}
+
+message GetRefreshChainReq {
+  string chain_id = 1;
+}
+
+message GetRefreshChainResp {
+  RefreshTokenChain chain = 1;
+  bool not_found = 2;
+}
+
+message RevokeRefreshChainReq {
+  string chain_id = 1;
+}
+
+message RevokeRefreshChainResp {
+  RefreshTokenChain chain = 1;
+  bool not_found = 2;
+  // True when the chain was already revoked before this call.
+  bool already_revoked = 3;
+}
+
+message RevokeUserRefreshChainsReq {
+  // The "sub" claim returned in the ID Token.
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+message RevokeUserRefreshChainsResp {
+  repeated RefreshTokenChain chains = 1;
+}
+
 message VerifyPasswordReq {
   string email = 1;
   string password = 2;
@@ -572,6 +631,14 @@ service Dex {
   //
   // Note that each user-client pair can have only one refresh token at a time.
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
+  // GetRefreshChain returns status and generation history for one chain.
+  rpc GetRefreshChain(GetRefreshChainReq) returns (GetRefreshChainResp) {};
+  // RevokeRefreshChain atomically revokes every generation in one chain. It is
+  // idempotent for an already revoked chain.
+  rpc RevokeRefreshChain(RevokeRefreshChainReq) returns (RevokeRefreshChainResp) {};
+  // RevokeUserRefreshChains revokes all chains owned by a user under one
+  // connector.
+  rpc RevokeUserRefreshChains(RevokeUserRefreshChainsReq) returns (RevokeUserRefreshChainsResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
   // GetAuthSession returns an auth session by its ID.

@@ -590,6 +590,25 @@ func (s *memStorage) UpdateRefreshToken(ctx context.Context, id string, updater 
 	return
 }
 
+func (s *memStorage) CompareAndSwapRefreshTokenGeneration(ctx context.Context, id string, expectedGeneration int64, next storage.RefreshToken) (current storage.RefreshToken, swapped bool, err error) {
+	s.tx(func() {
+		r, ok := s.refreshTokens[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		current = r
+		if r.Generation != expectedGeneration {
+			return
+		}
+		next.ID = id
+		s.refreshTokens[id] = next
+		current = next
+		swapped = true
+	})
+	return
+}
+
 func (s *memStorage) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(o storage.OfflineSessions) (storage.OfflineSessions, error)) (err error) {
 	id := compositeKeyID{
 		userID: userID,

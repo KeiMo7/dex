@@ -274,12 +274,20 @@ func init() {
 	refreshtokenDescObsoleteToken := refreshtokenFields[13].Descriptor()
 	// refreshtoken.DefaultObsoleteToken holds the default value on creation for the obsolete_token field.
 	refreshtoken.DefaultObsoleteToken = refreshtokenDescObsoleteToken.Default.(string)
+	// refreshtokenDescChainID is the schema descriptor for chain_id field.
+	refreshtokenDescChainID := refreshtokenFields[14].Descriptor()
+	// refreshtoken.DefaultChainID holds the default value on creation for the chain_id field.
+	refreshtoken.DefaultChainID = refreshtokenDescChainID.Default.(string)
+	// refreshtokenDescGeneration is the schema descriptor for generation field.
+	refreshtokenDescGeneration := refreshtokenFields[15].Descriptor()
+	// refreshtoken.DefaultGeneration holds the default value on creation for the generation field.
+	refreshtoken.DefaultGeneration = refreshtokenDescGeneration.Default.(int64)
 	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
-	refreshtokenDescCreatedAt := refreshtokenFields[14].Descriptor()
+	refreshtokenDescCreatedAt := refreshtokenFields[17].Descriptor()
 	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
 	// refreshtokenDescLastUsed is the schema descriptor for last_used field.
-	refreshtokenDescLastUsed := refreshtokenFields[15].Descriptor()
+	refreshtokenDescLastUsed := refreshtokenFields[18].Descriptor()
 	// refreshtoken.DefaultLastUsed holds the default value on creation for the last_used field.
 	refreshtoken.DefaultLastUsed = refreshtokenDescLastUsed.Default.(func() time.Time)
 	// refreshtokenDescID is the schema descriptor for id field.

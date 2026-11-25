@@ -248,7 +248,10 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		// only an infrastructure failure is a server error.
 		if errors.Is(err, tokens.ErrRefreshTokenInvalid) ||
 			errors.Is(err, tokens.ErrRefreshTokenExpired) ||
-			errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient) {
+			errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient) ||
+			errors.Is(err, tokens.ErrRefreshTokenReplayed) ||
+			errors.Is(err, tokens.ErrRefreshChainRevoked) ||
+			errors.Is(err, tokens.ErrRefreshTokenSuperseded) {
 			return nil, newIntrospectInactiveTokenError()
 		}
 		h.Logger.ErrorContext(ctx, "failed to get refresh token", "err", err)

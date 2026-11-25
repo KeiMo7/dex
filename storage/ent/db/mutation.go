@@ -9227,6 +9227,10 @@ type RefreshTokenMutation struct {
 	connector_data            *[]byte
 	token                     *string
 	obsolete_token            *string
+	chain_id                  *string
+	generation                *int64
+	addgeneration             *int64
+	chain_data                **storage.RefreshChain
 	created_at                *time.Time
 	last_used                 *time.Time
 	clearedFields             map[string]struct{}
@@ -9878,6 +9882,147 @@ func (m *RefreshTokenMutation) ResetObsoleteToken() {
 	m.obsolete_token = nil
 }
 
+// SetChainID sets the "chain_id" field.
+func (m *RefreshTokenMutation) SetChainID(s string) {
+	m.chain_id = &s
+}
+
+// ChainID returns the value of the "chain_id" field in the mutation.
+func (m *RefreshTokenMutation) ChainID() (r string, exists bool) {
+	v := m.chain_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChainID returns the old "chain_id" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldChainID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChainID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChainID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChainID: %w", err)
+	}
+	return oldValue.ChainID, nil
+}
+
+// ResetChainID resets all changes to the "chain_id" field.
+func (m *RefreshTokenMutation) ResetChainID() {
+	m.chain_id = nil
+}
+
+// SetGeneration sets the "generation" field.
+func (m *RefreshTokenMutation) SetGeneration(i int64) {
+	m.generation = &i
+	m.addgeneration = nil
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *RefreshTokenMutation) Generation() (r int64, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldGeneration(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// AddGeneration adds i to the "generation" field.
+func (m *RefreshTokenMutation) AddGeneration(i int64) {
+	if m.addgeneration != nil {
+		*m.addgeneration += i
+	} else {
+		m.addgeneration = &i
+	}
+}
+
+// AddedGeneration returns the value that was added to the "generation" field in this mutation.
+func (m *RefreshTokenMutation) AddedGeneration() (r int64, exists bool) {
+	v := m.addgeneration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *RefreshTokenMutation) ResetGeneration() {
+	m.generation = nil
+	m.addgeneration = nil
+}
+
+// SetChainData sets the "chain_data" field.
+func (m *RefreshTokenMutation) SetChainData(sc *storage.RefreshChain) {
+	m.chain_data = &sc
+}
+
+// ChainData returns the value of the "chain_data" field in the mutation.
+func (m *RefreshTokenMutation) ChainData() (r *storage.RefreshChain, exists bool) {
+	v := m.chain_data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChainData returns the old "chain_data" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldChainData(ctx context.Context) (v *storage.RefreshChain, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChainData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChainData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChainData: %w", err)
+	}
+	return oldValue.ChainData, nil
+}
+
+// ClearChainData clears the value of the "chain_data" field.
+func (m *RefreshTokenMutation) ClearChainData() {
+	m.chain_data = nil
+	m.clearedFields[refreshtoken.FieldChainData] = struct{}{}
+}
+
+// ChainDataCleared returns if the "chain_data" field was cleared in this mutation.
+func (m *RefreshTokenMutation) ChainDataCleared() bool {
+	_, ok := m.clearedFields[refreshtoken.FieldChainData]
+	return ok
+}
+
+// ResetChainData resets all changes to the "chain_data" field.
+func (m *RefreshTokenMutation) ResetChainData() {
+	m.chain_data = nil
+	delete(m.clearedFields, refreshtoken.FieldChainData)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *RefreshTokenMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -9984,7 +10129,7 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 18)
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
@@ -10023,6 +10168,15 @@ func (m *RefreshTokenMutation) Fields() []string {
 	}
 	if m.obsolete_token != nil {
 		fields = append(fields, refreshtoken.FieldObsoleteToken)
+	}
+	if m.chain_id != nil {
+		fields = append(fields, refreshtoken.FieldChainID)
+	}
+	if m.generation != nil {
+		fields = append(fields, refreshtoken.FieldGeneration)
+	}
+	if m.chain_data != nil {
+		fields = append(fields, refreshtoken.FieldChainData)
 	}
 	if m.created_at != nil {
 		fields = append(fields, refreshtoken.FieldCreatedAt)
@@ -10064,6 +10218,12 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.Token()
 	case refreshtoken.FieldObsoleteToken:
 		return m.ObsoleteToken()
+	case refreshtoken.FieldChainID:
+		return m.ChainID()
+	case refreshtoken.FieldGeneration:
+		return m.Generation()
+	case refreshtoken.FieldChainData:
+		return m.ChainData()
 	case refreshtoken.FieldCreatedAt:
 		return m.CreatedAt()
 	case refreshtoken.FieldLastUsed:
@@ -10103,6 +10263,12 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldToken(ctx)
 	case refreshtoken.FieldObsoleteToken:
 		return m.OldObsoleteToken(ctx)
+	case refreshtoken.FieldChainID:
+		return m.OldChainID(ctx)
+	case refreshtoken.FieldGeneration:
+		return m.OldGeneration(ctx)
+	case refreshtoken.FieldChainData:
+		return m.OldChainData(ctx)
 	case refreshtoken.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case refreshtoken.FieldLastUsed:
@@ -10207,6 +10373,27 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetObsoleteToken(v)
 		return nil
+	case refreshtoken.FieldChainID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChainID(v)
+		return nil
+	case refreshtoken.FieldGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	case refreshtoken.FieldChainData:
+		v, ok := value.(*storage.RefreshChain)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChainData(v)
+		return nil
 	case refreshtoken.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -10228,13 +10415,21 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *RefreshTokenMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addgeneration != nil {
+		fields = append(fields, refreshtoken.FieldGeneration)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *RefreshTokenMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case refreshtoken.FieldGeneration:
+		return m.AddedGeneration()
+	}
 	return nil, false
 }
 
@@ -10243,6 +10438,13 @@ func (m *RefreshTokenMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *RefreshTokenMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case refreshtoken.FieldGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGeneration(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RefreshToken numeric field %s", name)
 }
@@ -10259,6 +10461,9 @@ func (m *RefreshTokenMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(refreshtoken.FieldConnectorData) {
 		fields = append(fields, refreshtoken.FieldConnectorData)
+	}
+	if m.FieldCleared(refreshtoken.FieldChainData) {
+		fields = append(fields, refreshtoken.FieldChainData)
 	}
 	return fields
 }
@@ -10282,6 +10487,9 @@ func (m *RefreshTokenMutation) ClearField(name string) error {
 		return nil
 	case refreshtoken.FieldConnectorData:
 		m.ClearConnectorData()
+		return nil
+	case refreshtoken.FieldChainData:
+		m.ClearChainData()
 		return nil
 	}
 	return fmt.Errorf("unknown RefreshToken nullable field %s", name)
@@ -10329,6 +10537,15 @@ func (m *RefreshTokenMutation) ResetField(name string) error {
 		return nil
 	case refreshtoken.FieldObsoleteToken:
 		m.ResetObsoleteToken()
+		return nil
+	case refreshtoken.FieldChainID:
+		m.ResetChainID()
+		return nil
+	case refreshtoken.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	case refreshtoken.FieldChainData:
+		m.ResetChainData()
 		return nil
 	case refreshtoken.FieldCreatedAt:
 		m.ResetCreatedAt()

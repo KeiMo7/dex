@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
 )
 
@@ -44,6 +45,12 @@ type RefreshToken struct {
 	Token string `json:"token,omitempty"`
 	// ObsoleteToken holds the value of the "obsolete_token" field.
 	ObsoleteToken string `json:"obsolete_token,omitempty"`
+	// ChainID holds the value of the "chain_id" field.
+	ChainID string `json:"chain_id,omitempty"`
+	// Generation holds the value of the "generation" field.
+	Generation int64 `json:"generation,omitempty"`
+	// ChainData holds the value of the "chain_data" field.
+	ChainData *storage.RefreshChain `json:"chain_data,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastUsed holds the value of the "last_used" field.
@@ -56,11 +63,13 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case refreshtoken.FieldScopes, refreshtoken.FieldClaimsGroups, refreshtoken.FieldConnectorData:
+		case refreshtoken.FieldScopes, refreshtoken.FieldClaimsGroups, refreshtoken.FieldConnectorData, refreshtoken.FieldChainData:
 			values[i] = new([]byte)
 		case refreshtoken.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
+		case refreshtoken.FieldGeneration:
+			values[i] = new(sql.NullInt64)
+		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken, refreshtoken.FieldChainID:
 			values[i] = new(sql.NullString)
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
@@ -167,6 +176,26 @@ func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ObsoleteToken = value.String
 			}
+		case refreshtoken.FieldChainID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field chain_id", values[i])
+			} else if value.Valid {
+				_m.ChainID = value.String
+			}
+		case refreshtoken.FieldGeneration:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field generation", values[i])
+			} else if value.Valid {
+				_m.Generation = value.Int64
+			}
+		case refreshtoken.FieldChainData:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field chain_data", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ChainData); err != nil {
+					return fmt.Errorf("unmarshal field chain_data: %w", err)
+				}
+			}
 		case refreshtoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -255,6 +284,15 @@ func (_m *RefreshToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("obsolete_token=")
 	builder.WriteString(_m.ObsoleteToken)
+	builder.WriteString(", ")
+	builder.WriteString("chain_id=")
+	builder.WriteString(_m.ChainID)
+	builder.WriteString(", ")
+	builder.WriteString("generation=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Generation))
+	builder.WriteString(", ")
+	builder.WriteString("chain_data=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ChainData))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

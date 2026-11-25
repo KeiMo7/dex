@@ -512,4 +512,15 @@ var migrations = []migration{
 			`alter table auth_session add column connector_data bytea;`,
 		},
 	},
+	{
+		// Refresh-token chains/generation ordering. New columns are nullable or
+		// defaulted so rows written by the previous binary remain readable and the
+		// old instance's explicit column lists continue to work during rollout.
+		stmts: []string{
+			`alter table refresh_token add column chain_id text not null default '';`,
+			`alter table refresh_token add column generation integer not null default 0;`,
+			`alter table refresh_token add column chain_data bytea;`,
+			`create index refresh_token_chain_id_idx on refresh_token (chain_id);`,
+		},
+	},
 }

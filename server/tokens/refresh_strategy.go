@@ -68,6 +68,13 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 	return NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, time.Now), nil
 }
 
+func (s *RefreshStrategy) currentTime() time.Time {
+	if s != nil && s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
 // RotationEnabled reports whether refresh tokens are rotated on use.
 func (s *RefreshStrategy) RotationEnabled() bool {
 	return s.rotate
@@ -85,7 +92,7 @@ func (s *RefreshStrategy) CompletelyExpired(lastUsed time.Time) bool {
 	if s.absoluteLifetime == 0 {
 		return false // expiration disabled
 	}
-	return s.now().After(lastUsed.Add(s.absoluteLifetime))
+	return s.currentTime().After(lastUsed.Add(s.absoluteLifetime))
 }
 
 // ExpiredBecauseUnused reports whether a token has been idle past its inactivity
@@ -94,7 +101,23 @@ func (s *RefreshStrategy) ExpiredBecauseUnused(lastUsed time.Time) bool {
 	if s.validIfNotUsedFor == 0 {
 		return false // expiration disabled
 	}
-	return s.now().After(lastUsed.Add(s.validIfNotUsedFor))
+	return s.currentTime().After(lastUsed.Add(s.validIfNotUsedFor))
+}
+
+// ReuseInterval is the idempotency/grace window in which a just-rotated
+// generation may be retried and receive the same current token.
+func (s *RefreshStrategy) ReuseInterval() time.Duration {
+	return s.reuseInterval
+}
+
+// IdempotencyWindow is the requirement-name alias for ReuseInterval.
+func (s *RefreshStrategy) IdempotencyWindow() time.Duration {
+	return s.reuseInterval
+}
+
+// AllowedIdempotentRetry is the requirement-name alias for AllowedToReuse.
+func (s *RefreshStrategy) AllowedIdempotentRetry(lastUsed time.Time) bool {
+	return s.AllowedToReuse(lastUsed)
 }
 
 // AllowedToReuse reports whether a just-rotated token may still be reused within
@@ -103,5 +126,5 @@ func (s *RefreshStrategy) AllowedToReuse(lastUsed time.Time) bool {
 	if s.reuseInterval == 0 {
 		return false // reuse disabled
 	}
-	return !s.now().After(lastUsed.Add(s.reuseInterval))
+	return !s.currentTime().After(lastUsed.Add(s.reuseInterval))
 }
